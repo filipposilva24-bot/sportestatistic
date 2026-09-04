@@ -10,8 +10,8 @@
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-8 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Histórico Jogo a Jogo</h1>
-      <p class="text-sm text-gray-400 mt-1">Desempenho detalhado dos últimos 5 jogos (Gols, Finalizações, Chutes, Escanteios e Cartões)</p>
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Médias de Mercado</h1>
+      <p class="text-sm text-gray-400 mt-1">Histórico jogo a jogo e média dos últimos 5 jogos por equipe</p>
     </header>
 
     <div id="painel-estatisticas" class="space-y-6">
@@ -23,7 +23,7 @@
     function renderTabelaHistorico(tData) {
       let html = `<div class="overflow-x-auto"><table class="w-full text-[11px] text-center text-gray-300">`;
       
-      // Cabeçalho com as badges de resultado (V, E, D)
+      // Cabeçalho com os jogos (J1 a J5) e coluna de Média
       html += `<tr class="border-b border-gray-800">`;
       html += `<th class="text-left py-1 text-gray-400 font-normal">Últimos 5</th>`;
       for(let i = 0; i < 5; i++) {
@@ -34,9 +34,10 @@
         else if (res === 'D') bg = "bg-rose-600 text-white font-bold";
         html += `<th class="py-1 px-1"><span class="inline-block w-4 h-4 rounded text-[9px] ${bg}">${res}</span></th>`;
       }
+      html += `<th class="py-1 px-2 text-emerald-400 font-bold bg-gray-900/80 rounded">Média</th>`;
       html += `</tr>`;
 
-      // Linhas de métricas jogo a jogo
+      // Métricas
       const metrics = [
         { label: '⚽ Gols', key: 'gols' },
         { label: '🎯 Finaliz.', key: 'finalizacoes' },
@@ -48,10 +49,17 @@
       metrics.forEach(m => {
         html += `<tr class="border-b border-gray-900/50">`;
         html += `<td class="text-left py-1 text-gray-400 font-medium">${m.label}</td>`;
+        
+        // Valores dos últimos 5 jogos
         for(let i = 0; i < 5; i++) {
           let val = tData[m.key] ? tData[m.key][i] : 0;
           html += `<td class="py-1 px-1 font-semibold text-white">${val}</td>`;
         }
+
+        // Coluna da Média
+        let mediaVal = tData.medias && tData.medias[m.key] ? tData.medias[m.key] : '0.0';
+        html += `<td class="py-1 px-2 font-bold text-emerald-400 bg-gray-900/80">${mediaVal}</td>`;
+        
         html += `</tr>`;
       });
 
@@ -101,7 +109,7 @@
 
             partidas.forEach(p => {
               const dataFormatada = new Date(p.matchDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-              const u5 = p.ultimos5Jogos || { home: { forma: [] }, away: { forma: [] } };
+              const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
               
               htmlGeral += `
                 <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md">
@@ -114,7 +122,7 @@
                     ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
                   </div>
 
-                  <!-- Comparativo Jogo a Jogo (Últimos 5 Jogos) -->
+                  <!-- Comparativo Jogo a Jogo + Médias -->
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
                     <!-- Mandante -->
                     <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
@@ -132,7 +140,7 @@
                   <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
                     <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
                     <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium text-[11px]">
-                      Análise Avançada Pronta
+                      Painel Pronto para Entrada
                     </span>
                   </div>
                 </div>
