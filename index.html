@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Estatísticas de Futebol</title>
+  <!-- Tailwind CSS para o design moderno -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4 md:p-8">
+
+  <div class="max-w-4xl mx-auto">
+    <header class="mb-8 text-center">
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Estatísticas da Elite do Dia</h1>
+      <p class="text-sm text-gray-400 mt-1">Dados oficiais integrados via Football-Data e SofaScore</p>
+    </header>
+
+    <!-- Container onde os jogos serão injetados -->
+    <div id="painel-estatisticas" class="space-y-6">
+      <p class="text-center text-gray-500">Carregando dados estatísticos...</p>
+    </div>
+  </div>
+
+  <script>
+    // CONFIGURAÇÃO DO SEU FIREBASE (Substitua pelas suas credenciais se necessário)
+    // Se você já carrega o Firebase de outra forma no seu projeto, pode manter o seu script.
+    const firebaseConfig = {
+      // Cole aqui as configs do seu firebase se já não estiverem em outro arquivo
+    };
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    async function carregarEstatisticas() {
+      const container = document.getElementById('painel-estatisticas');
+
+      try {
+        // Dispara a API para buscar e atualizar os dados do dia no Firebase
+        await fetch('/api/estatisticas');
+
+        // Puxa os dados salvos no Firestore
+        const snapshot = await db.collection('match_stats').orderBy('matchDate', 'asc').get();
+        
+        if (snapshot.empty) {
+          container.innerHTML = '<p class="text-center text-gray-400">Nenhuma estatística encontrada para hoje.</p>';
+          return;
+        }
+
+        let htmlGeral = '';
+        const jogosPorPais = {};
+
+        // Agrupa os jogos por País e depois por Liga
+        snapshot.forEach(doc => {
+          const jogo = doc.data();
+          const pais = jogo.country || "Internacional";
+          const liga = jogo.league || "Outras Ligas";
+
+          if (!jogosPorPais[pais]) jogosPorPais[pais] = {};
+          if (!jogosPorPais[pais][liga]) jogosPorPais[pais][liga] = [];
+
+          jogosPorPais[pais][liga].push(jogo);
+        });
+
+        // Monta o HTML hierárquico
+        for (const [pais, ligas] of Object.entries(jogosPorPais)) {
+          htmlGeral += `
+            <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 shadow-xl">
+              <h2 class="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                🌍 ${pais}
+              </h2>`;
+
+          for (const [liga, partidas] of Object.entries(ligas)) {
+            htmlGeral += `
+              <div class="mb-4 last:mb-0">
+                <h3 class="text-md font-semibold text-gray-300 mb-3 border-b border-gray-800 pb-1">
+                  🏆 ${liga}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+            partidas.forEach(p => {
+              const dataFormatada = new Date(p.matchDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              
+              htmlGeral += `
+                <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all">
+                  <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
+                    <span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300">📅 ${dataFormatada}</span>
+                    <span class="text-emerald-400 font-medium">${p.statusPartida || 'Agendado'}</span>
+                  </div>
+                  
+                  <div class="text-center font-bold text-white text-base my-3">
+                    ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
+                  </div>
+                  
+                  <div class="text-xs text-gray-400 pt-3 border-t border-gray-800/80 flex justify-between items-center">
+                    <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
+                    <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50">
+                      SofaScore: ${p.estatisticasSofaScore?.status || 'Pronto'}
+                    </span>
+                  </div>
+                </div>
+              `;
+            });
+
+            htmlGeral += `</div></div>`;
+          }
+          htmlGeral += `</div>`;
+        }
+
+        container.innerHTML = htmlGeral;
+
+      } catch (error) {
+        console.error("Erro ao carregar painel:", error);
+        container.innerHTML = '<p class="text-center text-red-400">Erro ao carregar dados estatísticos.</p>';
+      }
+    }
+
+    // Executa ao carregar a página
+    carregarEstatisticas();
+  </script>
+
+</body>
+</html>
