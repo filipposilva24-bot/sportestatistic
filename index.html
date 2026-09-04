@@ -8,14 +8,14 @@
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-4 md:p-8">
 
-  <div class="max-w-5xl mx-auto">
+  <div class="max-w-6xl mx-auto">
     <header class="mb-8 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Estatísticas & Forma da Elite do Dia</h1>
-      <p class="text-sm text-gray-400 mt-1">Análise de mercados, escanteios e média dos últimos 5 jogos</p>
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Mercados de Elite</h1>
+      <p class="text-sm text-gray-400 mt-1">Médias de Gols, Finalizações, Chutes no Gol, Escanteios e Cartões (Últimos 5 Jogos)</p>
     </header>
 
     <div id="painel-estatisticas" class="space-y-6">
-      <p class="text-center text-gray-500 animate-pulse">Carregando dados das partidas...</p>
+      <p class="text-center text-gray-500 animate-pulse">Carregando dados analíticos das partidas...</p>
     </div>
   </div>
 
@@ -26,7 +26,7 @@
         if (res === 'V') bg = "bg-emerald-600 text-white font-bold";
         else if (res === 'E') bg = "bg-amber-600 text-white font-bold";
         else if (res === 'D') bg = "bg-rose-600 text-white font-bold";
-        return `<span class="w-6 h-6 flex items-center justify-center rounded text-xs ${bg}">${res}</span>`;
+        return `<span class="w-5 h-5 flex items-center justify-center rounded text-[10px] ${bg}">${res}</span>`;
       }).join('');
     }
 
@@ -85,27 +85,35 @@
                     ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
                   </div>
 
-                  <!-- Seção Comparativa da Forma (Últimos 5 jogos) -->
+                  <!-- Comparativo Estatístico Detalhado (Últimos 5 Jogos) -->
                   <div class="grid grid-cols-2 gap-2 my-3 text-xs">
                     <!-- Mandante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                      <div class="text-emerald-400 font-semibold mb-1 truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
-                      <div class="flex gap-1 mb-2">${renderFormaBadges(u5.home.forma || ['V','E','V','D','V'])}</div>
-                      <div class="text-gray-400 space-y-1">
-                        <div class="flex justify-between"><span>Escanteios:</span> <strong class="text-white">${u5.home.mediaEscanteios}</strong></div>
-                        <div class="flex justify-between"><span>Finalizações:</span> <strong class="text-white">${u5.home.mediaFinalizacoes}</strong></div>
-                        <div class="flex justify-between"><span>Posse Média:</span> <strong class="text-white">${u5.home.mediaPosse}</strong></div>
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800 space-y-2">
+                      <div class="flex justify-between items-center border-b border-gray-800 pb-1">
+                        <span class="text-emerald-400 font-semibold truncate max-w-[110px]" title="${p.homeTeam}">🏠 ${p.homeTeam}</span>
+                        <div class="flex gap-1">${renderFormaBadges(u5.home.forma || ['V','E','V','D','V'])}</div>
+                      </div>
+                      <div class="text-gray-300 space-y-1">
+                        <div class="flex justify-between"><span>⚽ Gols:</span> <strong class="text-emerald-400">${u5.home.mediaGols}</strong></div>
+                        <div class="flex justify-between"><span>🎯 Finalizações:</span> <strong class="text-white">${u5.home.mediaFinalizacoes}</strong></div>
+                        <div class="flex justify-between"><span>🥅 Chutes no Gol:</span> <strong class="text-white">${u5.home.mediaChutesNoGol}</strong></div>
+                        <div class="flex justify-between"><span>🚩 Escanteios:</span> <strong class="text-white">${u5.home.mediaEscanteios}</strong></div>
+                        <div class="flex justify-between"><span>🟨 Cartões:</span> <strong class="text-white">${u5.home.mediaCartoes}</strong></div>
                       </div>
                     </div>
 
                     <!-- Visitante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                      <div class="text-blue-400 font-semibold mb-1 truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
-                      <div class="flex gap-1 mb-2">${renderFormaBadges(u5.away.forma || ['D','V','E','V','D'])}</div>
-                      <div class="text-gray-400 space-y-1">
-                        <div class="flex justify-between"><span>Escanteios:</span> <strong class="text-white">${u5.away.mediaEscanteios}</strong></div>
-                        <div class="flex justify-between"><span>Finalizações:</span> <strong class="text-white">${u5.away.mediaFinalizacoes}</strong></div>
-                        <div class="flex justify-between"><span>Posse Média:</span> <strong class="text-white">${u5.away.mediaPosse}</strong></div>
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800 space-y-2">
+                      <div class="flex justify-between items-center border-b border-gray-800 pb-1">
+                        <span class="text-blue-400 font-semibold truncate max-w-[110px]" title="${p.awayTeam}">✈️ ${p.awayTeam}</span>
+                        <div class="flex gap-1">${renderFormaBadges(u5.away.forma || ['D','V','E','V','D'])}</div>
+                      </div>
+                      <div class="text-gray-300 space-y-1">
+                        <div class="flex justify-between"><span>⚽ Gols:</span> <strong class="text-emerald-400">${u5.away.mediaGols}</strong></div>
+                        <div class="flex justify-between"><span>🎯 Finalizações:</span> <strong class="text-white">${u5.away.mediaFinalizacoes}</strong></div>
+                        <div class="flex justify-between"><span>🥅 Chutes no Gol:</span> <strong class="text-white">${u5.away.mediaChutesNoGol}</strong></div>
+                        <div class="flex justify-between"><span>🚩 Escanteios:</span> <strong class="text-white">${u5.away.mediaEscanteios}</strong></div>
+                        <div class="flex justify-between"><span>🟨 Cartões:</span> <strong class="text-white">${u5.away.mediaCartoes}</strong></div>
                       </div>
                     </div>
                   </div>
@@ -113,7 +121,7 @@
                   <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
                     <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
                     <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium">
-                      Análise Pronta
+                      Pronto para Análise
                     </span>
                   </div>
                 </div>
