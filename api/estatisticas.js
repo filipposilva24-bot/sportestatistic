@@ -49,16 +49,18 @@ function gerarDadosUltimos5Jogos(matchId) {
   return {
     home: {
       forma: formasHome[seed],
-      mediaEscanteios: (5.4 + (seed * 0.3)).toFixed(1),
+      mediaGols: (1.8 + (seed * 0.2)).toFixed(1),
       mediaFinalizacoes: (14.2 + seed).toFixed(1),
-      mediaPosse: `${53 + seed}%`,
+      mediaChutesNoGol: (5.5 + (seed * 0.3)).toFixed(1),
+      mediaEscanteios: (5.4 + (seed * 0.3)).toFixed(1),
       mediaCartoes: (1.8 + (seed * 0.2)).toFixed(1)
     },
     away: {
       forma: formasAway[seed],
-      mediaEscanteios: (4.6 + (seed * 0.2)).toFixed(1),
+      mediaGols: (1.2 + (seed * 0.1)).toFixed(1),
       mediaFinalizacoes: (11.5 + seed).toFixed(1),
-      mediaPosse: `${47 - seed}%`,
+      mediaChutesNoGol: (3.8 + (seed * 0.2)).toFixed(1),
+      mediaEscanteios: (4.6 + (seed * 0.2)).toFixed(1),
       mediaCartoes: (2.2 + (seed * 0.1)).toFixed(1)
     }
   };
