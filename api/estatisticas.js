@@ -31,6 +31,11 @@ async function buscarJogosDoDia() {
   return data.matches.filter(match => ligasElite.includes(match.competition?.code)).slice(0, 10);
 }
 
+function calcularMedia(arr) {
+  const soma = arr.reduce((acc, val) => acc + val, 0);
+  return (soma / arr.length).toFixed(1);
+}
+
 function gerarHistoricoUltimos5Jogos(matchId) {
   const seed = matchId % 4;
   
@@ -48,22 +53,48 @@ function gerarHistoricoUltimos5Jogos(matchId) {
     ['D', 'V', 'D', 'E', 'V']
   ];
 
+  const homeGols = [2, 1, 1, 0, 3].map((v, i) => Math.max(0, v + ((seed + i) % 2) - 1));
+  const homeFin = [14, 16, 12, 10, 15].map(v => v + seed);
+  const homeCh = [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2)));
+  const homeEsc = [6, 5, 7, 4, 6].map(v => v + (seed % 2));
+  const homeCar = [2, 1, 3, 2, 1];
+
+  const awayGols = [1, 0, 2, 1, 1].map((v, i) => Math.max(0, v + ((seed + i) % 2)));
+  const awayFin = [11, 9, 13, 10, 12].map(v => v + (seed % 2));
+  const awayCh = [4, 3, 5, 4, 3];
+  const awayEsc = [5, 4, 6, 3, 5];
+  const awayCar = [3, 2, 2, 4, 1];
+
   return {
     home: {
       forma: formasHome[seed],
-      gols: [2, 1, 1, 0, 3].map((v, i) => Math.max(0, v + ((seed + i) % 2) - 1)),
-      finalizacoes: [14, 16, 12, 10, 15].map(v => v + seed),
-      chutesNoGol: [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2))),
-      escanteios: [6, 5, 7, 4, 6].map(v => v + (seed % 2)),
-      cartoes: [2, 1, 3, 2, 1]
+      gols: homeGols,
+      finalizacoes: homeFin,
+      chutesNoGol: homeCh,
+      escanteios: homeEsc,
+      cartoes: homeCar,
+      medias: {
+        gols: calcularMedia(homeGols),
+        finalizacoes: calcularMedia(homeFin),
+        chutesNoGol: calcularMedia(homeCh),
+        escanteios: calcularMedia(homeEsc),
+        cartoes: calcularMedia(homeCar)
+      }
     },
     away: {
       forma: formasAway[seed],
-      gols: [1, 0, 2, 1, 1].map((v, i) => Math.max(0, v + ((seed + i) % 2))),
-      finalizacoes: [11, 9, 13, 10, 12].map(v => v + (seed % 2)),
-      chutesNoGol: [4, 3, 5, 4, 3],
-      escanteios: [5, 4, 6, 3, 5],
-      cartoes: [3, 2, 2, 4, 1]
+      gols: awayGols,
+      finalizacoes: awayFin,
+      chutesNoGol: awayCh,
+      escanteios: awayEsc,
+      cartoes: awayCar,
+      medias: {
+        gols: calcularMedia(awayGols),
+        finalizacoes: calcularMedia(awayFin),
+        chutesNoGol: calcularMedia(awayCh),
+        escanteios: calcularMedia(awayEsc),
+        cartoes: calcularMedia(awayCar)
+      }
     }
   };
 }
