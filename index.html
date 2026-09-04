@@ -4,11 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Estatísticas de Futebol</title>
-  <!-- Tailwind CSS para o design moderno -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-4 md:p-8">
 
@@ -18,44 +14,29 @@
       <p class="text-sm text-gray-400 mt-1">Dados oficiais integrados via Football-Data e SofaScore</p>
     </header>
 
-    <!-- Container onde os jogos serão injetados -->
     <div id="painel-estatisticas" class="space-y-6">
-      <p class="text-center text-gray-500">Carregando dados estatísticos...</p>
+      <p class="text-center text-gray-500 animate-pulse">Carregando dados estatísticos...</p>
     </div>
   </div>
 
   <script>
-    // CONFIGURAÇÃO DO SEU FIREBASE (Substitua pelas suas credenciais se necessário)
-    // Se você já carrega o Firebase de outra forma no seu projeto, pode manter o seu script.
-    const firebaseConfig = {
-      // Cole aqui as configs do seu firebase se já não estiverem em outro arquivo
-    };
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.firestore();
-
     async function carregarEstatisticas() {
       const container = document.getElementById('painel-estatisticas');
 
       try {
-        // Dispara a API para buscar e atualizar os dados do dia no Firebase
-        await fetch('/api/estatisticas');
+        const response = await fetch('/api/estatisticas');
+        const data = await response.json();
 
-        // Puxa os dados salvos no Firestore
-        const snapshot = await db.collection('match_stats').orderBy('matchDate', 'asc').get();
-        
-        if (snapshot.empty) {
-          container.innerHTML = '<p class="text-center text-gray-400">Nenhuma estatística encontrada para hoje.</p>';
+        if (!data.success || !data.matches || data.matches.length === 0) {
+          container.innerHTML = `<p class="text-center text-gray-400">${data.message || 'Nenhuma estatística encontrada para hoje.'}</p>`;
           return;
         }
 
         let htmlGeral = '';
         const jogosPorPais = {};
 
-        // Agrupa os jogos por País e depois por Liga
-        snapshot.forEach(doc => {
-          const jogo = doc.data();
+        // Agrupa os jogos por País e Liga
+        data.matches.forEach(jogo => {
           const pais = jogo.country || "Internacional";
           const liga = jogo.league || "Outras Ligas";
 
@@ -65,7 +46,7 @@
           jogosPorPais[pais][liga].push(jogo);
         });
 
-        // Monta o HTML hierárquico
+        // Renderiza na tela
         for (const [pais, ligas] of Object.entries(jogosPorPais)) {
           htmlGeral += `
             <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 shadow-xl">
@@ -118,7 +99,6 @@
       }
     }
 
-    // Executa ao carregar a página
     carregarEstatisticas();
   </script>
 
