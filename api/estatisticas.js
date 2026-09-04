@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 
-if (!admin.apps.length) {
+if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
   try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -9,15 +9,19 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
+const db = admin.apps.length ? admin.firestore() : null;
 
-// Puxa os jogos do dia da Football-Data (Ligas de Elite)
-async function buscarJogosDoDia(footballDataKey) {
+// Chaves integradas para funcionamento imediato
+const FOOTBALL_DATA_KEY = "f8928c309caf420b9cfab4a8a906de73";
+const RAPID_API_KEY = "dd3bf28953mshde87a075504e10d1d7937jsnbb647204dfe3";
+const RAPID_API_HOST = "sportapi7.p.rapidapi.com";
+
+async function buscarJogosDoDia() {
   const agora = new Date();
-  const hoje = agora.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+  const hoje = agora.toISOString().split('T')[0];
   
   const res = await fetch(`https://api.football-data.org/v4/matches?date=${hoje}`, { 
-    headers: { 'X-Auth-Token': footballDataKey } 
+    headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY } 
   });
   
   if (!res.ok) throw new Error(`Erro football-data: ${res.status}`);
@@ -28,14 +32,13 @@ async function buscarJogosDoDia(footballDataKey) {
   return data.matches.filter(match => ligasElite.includes(match.competition?.code)).slice(0, 10);
 }
 
-// Puxa estatísticas reais da API do SofaScore (RapidAPI)
-async function buscarEstatisticasSofaScore(home, away, rapidApiKey, rapidApiHost) {
+async function buscarEstatisticasSofaScore(home, away) {
   try {
     const query = encodeURIComponent(`${home} ${away}`);
-    const res = await fetch(`https://${rapidApiHost}/search/unique-tournaments?q=${query}`, {
+    const res = await fetch(`https://${RAPID_API_HOST}/search/unique-tournaments?q=${query}`, {
       headers: {
-        'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': rapidApiHost
+        'x-rapidapi-key': RAPID_API_KEY,
+        'x-rapidapi-host': RAPID_API_HOST
       }
     });
     
@@ -44,8 +47,7 @@ async function buscarEstatisticasSofaScore(home, away, rapidApiKey, rapidApiHost
     
     return {
       status: "Disponível",
-      torneioEncontrado: data.uniqueTournaments?.[0]?.name || "Competição Oficial",
-      rawSearch: data
+      torneioEncontrado: data.uniqueTournaments?.[0]?.name || "Competição Oficial"
     };
   } catch (e) {
     return { status: "Erro" };
@@ -53,24 +55,16 @@ async function buscarEstatisticasSofaScore(home, away, rapidApiKey, rapidApiHost
 }
 
 module.exports = async function handler(req, res) {
-  const footballDataKey = process.env.FOOTBALL_DATA_KEY;
-  const rapidApiKey = process.env.RAPID_API_KEY;
-  const rapidApiHost = process.env.RAPID_API_HOST;
-  
-  if (!footballDataKey) {
-    return res.status(500).json({ success: false, error: "Falta a chave da football-data.org" });
-  }
-
   try {
-    const matches = await buscarJogosDoDia(footballDataKey);
+    const matches = await buscarJogosDoDia();
     
     if (!matches || matches.length === 0) {
-       return res.status(200).json({ success: false, message: "Nenhum jogo de elite agendado para hoje." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo de elite agendado para hoje." });
     }
 
-    let processados = 0;
+    const listaPartidas = [];
 
-    const promessas = matches.map(async (item) => {
+    for (const item of matches) {
       try {
         const matchId = item.id;
         const home = item.homeTeam.name;
@@ -78,12 +72,10 @@ module.exports = async function handler(req, res) {
         const league = item.competition.name;
         const referee = (item.referees && item.referees[0] && item.referees[0].name) || "Não divulgado";
 
-        const statsSofa = (rapidApiKey && rapidApiHost) 
-          ? await buscarEstatisticasSofaScore(home, away, rapidApiKey, rapidApiHost)
-          : { status: "Não configurado" };
+        const statsSofa = await buscarEstatisticasSofaScore(home, away);
 
         const docData = {
-          matchName: `${home} vs ${away}`,
+          id: matchId,
           homeTeam: home,
           awayTeam: away,
           league,
@@ -91,22 +83,23 @@ module.exports = async function handler(req, res) {
           matchDate: item.utcDate,
           statusPartida: item.status,
           arbitro: referee,
-          estatisticasSofaScore: statsSofa,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          estatisticasSofaScore: statsSofa
         };
 
-        await db.collection('match_stats').doc(String(matchId)).set(docData);
-        processados++;
+        if (db) {
+          await db.collection('match_stats').doc(String(matchId)).set(docData);
+        }
+
+        listaPartidas.push(docData);
       } catch (err) {
         console.error(`Erro ao processar jogo ${item.id}:`, err.message);
       }
-    });
-
-    await Promise.all(promessas);
+    }
 
     return res.status(200).json({ 
       success: true, 
-      message: `Estatísticas atualizadas! ${processados} jogos processados.` 
+      matches: listaPartidas,
+      message: `Estatísticas atualizadas! ${listaPartidas.length} jogos processados.` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
