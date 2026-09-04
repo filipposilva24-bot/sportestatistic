@@ -1,17 +1,17 @@
 const admin = require('firebase-admin');
 
+// Inicialização segura do Firebase (só ativa se a variável existir)
 if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
   try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   } catch (error) {
-    console.error("Erro Firebase:", error);
+    console.error("Erro ao inicializar Firebase:", error.message);
   }
 }
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-// Chaves integradas para funcionamento imediato
 const FOOTBALL_DATA_KEY = "f8928c309caf420b9cfab4a8a906de73";
 const RAPID_API_KEY = "dd3bf28953mshde87a075504e10d1d7937jsnbb647204dfe3";
 const RAPID_API_HOST = "sportapi7.p.rapidapi.com";
@@ -83,11 +83,13 @@ module.exports = async function handler(req, res) {
           matchDate: item.utcDate,
           statusPartida: item.status,
           arbitro: referee,
-          estatisticasSofaScore: statsSofa
+          estatisticasSofaScore: statsSofa,
+          updatedAt: new Date().toISOString()
         };
 
+        // Salva no Firestore apenas se o banco estiver configurado
         if (db) {
-          await db.collection('match_stats').doc(String(matchId)).set(docData);
+          await db.collection('match_stats').doc(String(matchId)).set(docData, { merge: true });
         }
 
         listaPartidas.push(docData);
@@ -99,7 +101,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       matches: listaPartidas,
-      message: `Estatísticas atualizadas! ${listaPartidas.length} jogos processados.` 
+      message: `Estatísticas processadas com sucesso! (${listaPartidas.length} jogos)` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
