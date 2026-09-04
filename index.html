@@ -10,24 +10,53 @@
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-8 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Mercados de Elite</h1>
-      <p class="text-sm text-gray-400 mt-1">Médias de Gols, Finalizações, Chutes no Gol, Escanteios e Cartões (Últimos 5 Jogos)</p>
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Histórico Jogo a Jogo</h1>
+      <p class="text-sm text-gray-400 mt-1">Desempenho detalhado dos últimos 5 jogos (Gols, Finalizações, Chutes, Escanteios e Cartões)</p>
     </header>
 
     <div id="painel-estatisticas" class="space-y-6">
-      <p class="text-center text-gray-500 animate-pulse">Carregando dados analíticos das partidas...</p>
+      <p class="text-center text-gray-500 animate-pulse">Carregando dados das partidas...</p>
     </div>
   </div>
 
   <script>
-    function renderFormaBadges(formaArray) {
-      return formaArray.map(res => {
+    function renderTabelaHistorico(tData) {
+      let html = `<div class="overflow-x-auto"><table class="w-full text-[11px] text-center text-gray-300">`;
+      
+      // Cabeçalho com as badges de resultado (V, E, D)
+      html += `<tr class="border-b border-gray-800">`;
+      html += `<th class="text-left py-1 text-gray-400 font-normal">Últimos 5</th>`;
+      for(let i = 0; i < 5; i++) {
+        let res = tData.forma[i];
         let bg = "bg-gray-700 text-white";
         if (res === 'V') bg = "bg-emerald-600 text-white font-bold";
         else if (res === 'E') bg = "bg-amber-600 text-white font-bold";
         else if (res === 'D') bg = "bg-rose-600 text-white font-bold";
-        return `<span class="w-5 h-5 flex items-center justify-center rounded text-[10px] ${bg}">${res}</span>`;
-      }).join('');
+        html += `<th class="py-1 px-1"><span class="inline-block w-4 h-4 rounded text-[9px] ${bg}">${res}</span></th>`;
+      }
+      html += `</tr>`;
+
+      // Linhas de métricas jogo a jogo
+      const metrics = [
+        { label: '⚽ Gols', key: 'gols' },
+        { label: '🎯 Finaliz.', key: 'finalizacoes' },
+        { label: '🥅 Ch. Gol', key: 'chutesNoGol' },
+        { label: '🚩 Escant.', key: 'escanteios' },
+        { label: '🟨 Cartões', key: 'cartoes' }
+      ];
+
+      metrics.forEach(m => {
+        html += `<tr class="border-b border-gray-900/50">`;
+        html += `<td class="text-left py-1 text-gray-400 font-medium">${m.label}</td>`;
+        for(let i = 0; i < 5; i++) {
+          let val = tData[m.key] ? tData[m.key][i] : 0;
+          html += `<td class="py-1 px-1 font-semibold text-white">${val}</td>`;
+        }
+        html += `</tr>`;
+      });
+
+      html += `</table></div>`;
+      return html;
     }
 
     async function carregarEstatisticas() {
@@ -72,7 +101,7 @@
 
             partidas.forEach(p => {
               const dataFormatada = new Date(p.matchDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-              const u5 = p.ultimos5Jogos || { home: {}, away: {} };
+              const u5 = p.ultimos5Jogos || { home: { forma: [] }, away: { forma: [] } };
               
               htmlGeral += `
                 <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md">
@@ -85,43 +114,25 @@
                     ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
                   </div>
 
-                  <!-- Comparativo Estatístico Detalhado (Últimos 5 Jogos) -->
-                  <div class="grid grid-cols-2 gap-2 my-3 text-xs">
+                  <!-- Comparativo Jogo a Jogo (Últimos 5 Jogos) -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
                     <!-- Mandante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800 space-y-2">
-                      <div class="flex justify-between items-center border-b border-gray-800 pb-1">
-                        <span class="text-emerald-400 font-semibold truncate max-w-[110px]" title="${p.homeTeam}">🏠 ${p.homeTeam}</span>
-                        <div class="flex gap-1">${renderFormaBadges(u5.home.forma || ['V','E','V','D','V'])}</div>
-                      </div>
-                      <div class="text-gray-300 space-y-1">
-                        <div class="flex justify-between"><span>⚽ Gols:</span> <strong class="text-emerald-400">${u5.home.mediaGols}</strong></div>
-                        <div class="flex justify-between"><span>🎯 Finalizações:</span> <strong class="text-white">${u5.home.mediaFinalizacoes}</strong></div>
-                        <div class="flex justify-between"><span>🥅 Chutes no Gol:</span> <strong class="text-white">${u5.home.mediaChutesNoGol}</strong></div>
-                        <div class="flex justify-between"><span>🚩 Escanteios:</span> <strong class="text-white">${u5.home.mediaEscanteios}</strong></div>
-                        <div class="flex justify-between"><span>🟨 Cartões:</span> <strong class="text-white">${u5.home.mediaCartoes}</strong></div>
-                      </div>
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                      <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
+                      ${renderTabelaHistorico(u5.home)}
                     </div>
 
                     <!-- Visitante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800 space-y-2">
-                      <div class="flex justify-between items-center border-b border-gray-800 pb-1">
-                        <span class="text-blue-400 font-semibold truncate max-w-[110px]" title="${p.awayTeam}">✈️ ${p.awayTeam}</span>
-                        <div class="flex gap-1">${renderFormaBadges(u5.away.forma || ['D','V','E','V','D'])}</div>
-                      </div>
-                      <div class="text-gray-300 space-y-1">
-                        <div class="flex justify-between"><span>⚽ Gols:</span> <strong class="text-emerald-400">${u5.away.mediaGols}</strong></div>
-                        <div class="flex justify-between"><span>🎯 Finalizações:</span> <strong class="text-white">${u5.away.mediaFinalizacoes}</strong></div>
-                        <div class="flex justify-between"><span>🥅 Chutes no Gol:</span> <strong class="text-white">${u5.away.mediaChutesNoGol}</strong></div>
-                        <div class="flex justify-between"><span>🚩 Escanteios:</span> <strong class="text-white">${u5.away.mediaEscanteios}</strong></div>
-                        <div class="flex justify-between"><span>🟨 Cartões:</span> <strong class="text-white">${u5.away.mediaCartoes}</strong></div>
-                      </div>
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                      <div class="text-blue-400 font-semibold mb-1 text-xs truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
+                      ${renderTabelaHistorico(u5.away)}
                     </div>
                   </div>
                   
                   <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
                     <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
-                    <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium">
-                      Pronto para Análise
+                    <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium text-[11px]">
+                      Análise Avançada Pronta
                     </span>
                   </div>
                 </div>
