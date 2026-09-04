@@ -31,37 +31,39 @@ async function buscarJogosDoDia() {
   return data.matches.filter(match => ligasElite.includes(match.competition?.code)).slice(0, 10);
 }
 
-function gerarDadosUltimos5Jogos(matchId) {
+function gerarHistoricoUltimos5Jogos(matchId) {
   const seed = matchId % 4;
+  
   const formasHome = [
     ['V', 'V', 'E', 'D', 'V'],
     ['V', 'E', 'V', 'V', 'D'],
     ['D', 'V', 'E', 'V', 'V'],
     ['E', 'V', 'V', 'D', 'V']
   ];
+  
   const formasAway = [
     ['D', 'E', 'V', 'D', 'V'],
     ['E', 'D', 'V', 'E', 'V'],
     ['V', 'D', 'D', 'V', 'E'],
     ['D', 'V', 'D', 'E', 'V']
   ];
-  
+
   return {
     home: {
       forma: formasHome[seed],
-      mediaGols: (1.8 + (seed * 0.2)).toFixed(1),
-      mediaFinalizacoes: (14.2 + seed).toFixed(1),
-      mediaChutesNoGol: (5.5 + (seed * 0.3)).toFixed(1),
-      mediaEscanteios: (5.4 + (seed * 0.3)).toFixed(1),
-      mediaCartoes: (1.8 + (seed * 0.2)).toFixed(1)
+      gols: [2, 1, 1, 0, 3].map((v, i) => Math.max(0, v + ((seed + i) % 2) - 1)),
+      finalizacoes: [14, 16, 12, 10, 15].map(v => v + seed),
+      chutesNoGol: [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2))),
+      escanteios: [6, 5, 7, 4, 6].map(v => v + (seed % 2)),
+      cartoes: [2, 1, 3, 2, 1]
     },
     away: {
       forma: formasAway[seed],
-      mediaGols: (1.2 + (seed * 0.1)).toFixed(1),
-      mediaFinalizacoes: (11.5 + seed).toFixed(1),
-      mediaChutesNoGol: (3.8 + (seed * 0.2)).toFixed(1),
-      mediaEscanteios: (4.6 + (seed * 0.2)).toFixed(1),
-      mediaCartoes: (2.2 + (seed * 0.1)).toFixed(1)
+      gols: [1, 0, 2, 1, 1].map((v, i) => Math.max(0, v + ((seed + i) % 2))),
+      finalizacoes: [11, 9, 13, 10, 12].map(v => v + (seed % 2)),
+      chutesNoGol: [4, 3, 5, 4, 3],
+      escanteios: [5, 4, 6, 3, 5],
+      cartoes: [3, 2, 2, 4, 1]
     }
   };
 }
@@ -84,7 +86,7 @@ module.exports = async function handler(req, res) {
         const league = item.competition.name;
         const referee = (item.referees && item.referees[0] && item.referees[0].name) || "Não divulgado";
 
-        const ultimos5 = gerarDadosUltimos5Jogos(matchId);
+        const historico5 = gerarHistoricoUltimos5Jogos(matchId);
 
         const docData = {
           id: matchId,
@@ -95,7 +97,7 @@ module.exports = async function handler(req, res) {
           matchDate: item.utcDate,
           statusPartida: item.status,
           arbitro: referee,
-          ultimos5Jogos: ultimos5,
+          ultimos5Jogos: historico5,
           updatedAt: new Date().toISOString()
         };
 
