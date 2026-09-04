@@ -1,0 +1,8 @@
+{
+  "name": "painel-estatisticas-futebol",
+  "version": "1.0.0",
+  "description": "App de estatisticas esportivas",
+  "dependencies": {
+    "firebase-admin": "^11.11.0"
+  }
+}
