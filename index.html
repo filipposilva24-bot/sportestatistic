@@ -9,21 +9,45 @@
 <body class="bg-gray-950 text-gray-100 min-h-screen p-4 md:p-8">
 
   <div class="max-w-6xl mx-auto">
-    <header class="mb-8 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Médias de Mercado</h1>
-      <p class="text-sm text-gray-400 mt-1">Histórico jogo a jogo e média dos últimos 5 jogos por equipe</p>
+    <header class="mb-6 text-center">
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Filtros Avançados</h1>
+      <p class="text-sm text-gray-400 mt-1">Jogos de Hoje e Amanhã com histórico e médias por equipe</p>
     </header>
 
+    <!-- Barra de Filtros -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6 shadow-lg grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">🌍 Filtrar por País</label>
+        <select id="filtro-pais" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-sm text-white focus:border-emerald-500 outline-none">
+          <option value="">Todos os Países</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">🏆 Filtrar por Liga</label>
+        <select id="filtro-liga" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-sm text-white focus:border-emerald-500 outline-none">
+          <option value="">Todas as Ligas</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">📅 Filtrar por Data</label>
+        <select id="filtro-data" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-sm text-white focus:border-emerald-500 outline-none">
+          <option value="">Todas as Datas</option>
+          <option value="hoje">Hoje</option>
+          <option value="amanha">Amanhã</option>
+        </select>
+      </div>
+    </div>
+
     <div id="painel-estatisticas" class="space-y-6">
-      <p class="text-center text-gray-500 animate-pulse">Carregando dados das partidas...</p>
+      <p class="text-center text-gray-500 animate-pulse">Carregando jogos de hoje e amanhã...</p>
     </div>
   </div>
 
   <script>
+    let todasAsPartidas = [];
+
     function renderTabelaHistorico(tData) {
       let html = `<div class="overflow-x-auto"><table class="w-full text-[11px] text-center text-gray-300">`;
-      
-      // Cabeçalho com os jogos (J1 a J5) e coluna de Média
       html += `<tr class="border-b border-gray-800">`;
       html += `<th class="text-left py-1 text-gray-400 font-normal">Últimos 5</th>`;
       for(let i = 0; i < 5; i++) {
@@ -37,7 +61,6 @@
       html += `<th class="py-1 px-2 text-emerald-400 font-bold bg-gray-900/80 rounded">Média</th>`;
       html += `</tr>`;
 
-      // Métricas
       const metrics = [
         { label: '⚽ Gols', key: 'gols' },
         { label: '🎯 Finaliz.', key: 'finalizacoes' },
@@ -49,17 +72,12 @@
       metrics.forEach(m => {
         html += `<tr class="border-b border-gray-900/50">`;
         html += `<td class="text-left py-1 text-gray-400 font-medium">${m.label}</td>`;
-        
-        // Valores dos últimos 5 jogos
         for(let i = 0; i < 5; i++) {
           let val = tData[m.key] ? tData[m.key][i] : 0;
           html += `<td class="py-1 px-1 font-semibold text-white">${val}</td>`;
         }
-
-        // Coluna da Média
         let mediaVal = tData.medias && tData.medias[m.key] ? tData.medias[m.key] : '0.0';
         html += `<td class="py-1 px-2 font-bold text-emerald-400 bg-gray-900/80">${mediaVal}</td>`;
-        
         html += `</tr>`;
       });
 
@@ -67,100 +85,161 @@
       return html;
     }
 
-    async function carregarEstatisticas() {
+    function popularFiltros(matches) {
+      const paisesSet = new Set();
+      const ligasSet = new Set();
+
+      matches.forEach(m => {
+        if (m.country) paisesSet.add(m.country);
+        if (m.league) ligasSet.add(m.league);
+      });
+
+      const selectPais = document.getElementById('filtro-pais');
+      const selectLiga = document.getElementById('filtro-liga');
+
+      selectPais.innerHTML = '<option value="">Todos os Países</option>';
+      selectLiga.innerHTML = '<option value="">Todas as Ligas</option>';
+
+      Array.from(paisesSet).sort().forEach(p => {
+        selectPais.innerHTML += `<option value="${p}">${p}</option>`;
+      });
+
+      Array.from(ligasSet).sort().forEach(l => {
+        selectLiga.innerHTML += `<option value="${l}">${l}</option>`;
+      });
+    }
+
+    function exibirPartidas(matches) {
       const container = document.getElementById('painel-estatisticas');
 
+      if (!matches || matches.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-400 py-10">Nenhuma partida encontrada com os filtros selecionados.</p>`;
+        return;
+      }
+
+      let htmlGeral = '';
+      const jogosPorPais = {};
+
+      matches.forEach(jogo => {
+        const pais = jogo.country || "Internacional";
+        const liga = jogo.league || "Outras Ligas";
+
+        if (!jogosPorPais[pais]) jogosPorPais[pais] = {};
+        if (!jogosPorPais[pais][liga]) jogosPorPais[pais][liga] = [];
+
+        jogosPorPais[pais][liga].push(jogo);
+      });
+
+      for (const [pais, ligas] of Object.entries(jogosPorPais)) {
+        htmlGeral += `
+          <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 shadow-xl">
+            <h2 class="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
+              🌍 ${pais}
+            </h2>`;
+
+        for (const [liga, partidas] of Object.entries(ligas)) {
+          htmlGeral += `
+            <div class="mb-4 last:mb-0">
+              <h3 class="text-md font-semibold text-gray-300 mb-3 border-b border-gray-800 pb-1">
+                🏆 ${liga}
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+          partidas.forEach(p => {
+            const dataObj = new Date(p.matchDate);
+            const dataFormatada = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
+            
+            htmlGeral += `
+              <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md">
+                <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
+                  <span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300">📅 ${dataFormatada}</span>
+                  <span class="text-emerald-400 font-medium">${p.statusPartida || 'Agendado'}</span>
+                </div>
+                
+                <div class="text-center font-bold text-white text-base my-2">
+                  ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
+                  <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                    <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
+                    ${renderTabelaHistorico(u5.home)}
+                  </div>
+
+                  <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                    <div class="text-blue-400 font-semibold mb-1 text-xs truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
+                    ${renderTabelaHistorico(u5.away)}
+                  </div>
+                </div>
+                
+                <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
+                  <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
+                  <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium text-[11px]">
+                    Pronto para Entrada
+                  </span>
+                </div>
+              </div>
+            `;
+          });
+
+          htmlGeral += `</div></div>`;
+        }
+        htmlGeral += `</div>`;
+      }
+
+      container.innerHTML = htmlGeral;
+    }
+
+    function aplicarFiltros() {
+      const paisFiltro = document.getElementById('filtro-pais').value;
+      const ligaFiltro = document.getElementById('filtro-liga').value;
+      const dataFiltro = document.getElementById('filtro-data').value;
+
+      const hojeStr = new Date().toISOString().split('T')[0];
+      const amanhaObj = new Date();
+      amanhaObj.setDate(amanhaObj.getDate() + 1);
+      const amanhaStr = amanhaObj.toISOString().split('T')[0];
+
+      const filtradas = todasAsPartidas.filter(m => {
+        const dataJogoStr = m.matchDate.split('T')[0];
+
+        if (paisFiltro && m.country !== paisFiltro) return false;
+        if (ligaFiltro && m.league !== ligaFiltro) return false;
+        if (dataFiltro === 'hoje' && dataJogoStr !== hojeStr) return false;
+        if (dataFiltro === 'amanha' && dataJogoStr !== amanhaStr) return false;
+
+        return true;
+      });
+
+      exibirPartidas(filtradas);
+    }
+
+    async function carregarDados() {
       try {
         const response = await fetch('/api/estatisticas');
         const data = await response.json();
 
-        if (!data.success || !data.matches || data.matches.length === 0) {
-          container.innerHTML = `<p class="text-center text-gray-400">${data.message || 'Nenhuma estatística encontrada para hoje.'}</p>`;
+        if (!data.success || !data.matches) {
+          document.getElementById('painel-estatisticas').innerHTML = `<p class="text-center text-gray-400">${data.message || 'Nenhum jogo encontrado.'}</p>`;
           return;
         }
 
-        let htmlGeral = '';
-        const jogosPorPais = {};
+        todasAsPartidas = data.matches;
+        popularFiltros(todasAsPartidas);
+        exibirPartidas(todasAsPartidas);
 
-        data.matches.forEach(jogo => {
-          const pais = jogo.country || "Internacional";
-          const liga = jogo.league || "Outras Ligas";
-
-          if (!jogosPorPais[pais]) jogosPorPais[pais] = {};
-          if (!jogosPorPais[pais][liga]) jogosPorPais[pais][liga] = [];
-
-          jogosPorPais[pais][liga].push(jogo);
-        });
-
-        for (const [pais, ligas] of Object.entries(jogosPorPais)) {
-          htmlGeral += `
-            <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 shadow-xl">
-              <h2 class="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
-                🌍 ${pais}
-              </h2>`;
-
-          for (const [liga, partidas] of Object.entries(ligas)) {
-            htmlGeral += `
-              <div class="mb-4 last:mb-0">
-                <h3 class="text-md font-semibold text-gray-300 mb-3 border-b border-gray-800 pb-1">
-                  🏆 ${liga}
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
-
-            partidas.forEach(p => {
-              const dataFormatada = new Date(p.matchDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-              const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
-              
-              htmlGeral += `
-                <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md">
-                  <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
-                    <span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300">📅 ${dataFormatada}</span>
-                    <span class="text-emerald-400 font-medium">${p.statusPartida || 'Agendado'}</span>
-                  </div>
-                  
-                  <div class="text-center font-bold text-white text-base my-2">
-                    ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
-                  </div>
-
-                  <!-- Comparativo Jogo a Jogo + Médias -->
-                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
-                    <!-- Mandante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                      <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
-                      ${renderTabelaHistorico(u5.home)}
-                    </div>
-
-                    <!-- Visitante -->
-                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                      <div class="text-blue-400 font-semibold mb-1 text-xs truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
-                      ${renderTabelaHistorico(u5.away)}
-                    </div>
-                  </div>
-                  
-                  <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
-                    <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
-                    <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium text-[11px]">
-                      Painel Pronto para Entrada
-                    </span>
-                  </div>
-                </div>
-              `;
-            });
-
-            htmlGeral += `</div></div>`;
-          }
-          htmlGeral += `</div>`;
-        }
-
-        container.innerHTML = htmlGeral;
+        document.getElementById('filtro-pais').addEventListener('change', aplicarFiltros);
+        document.getElementById('filtro-liga').addEventListener('change', aplicarFiltros);
+        document.getElementById('filtro-data').addEventListener('change', aplicarFiltros);
 
       } catch (error) {
         console.error("Erro ao carregar painel:", error);
-        container.innerHTML = '<p class="text-center text-red-400">Erro ao carregar dados estatísticos.</p>';
+        document.getElementById('painel-estatisticas').innerHTML = '<p class="text-center text-red-400">Erro ao carregar dados estatísticos.</p>';
       }
     }
 
-    carregarEstatisticas();
+    carregarDados();
   </script>
 
 </body>
