@@ -15,14 +15,16 @@ const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
 const API_HOST = "v3.football.api-sports.io";
 
 async function buscarAgendaReal() {
-  // Pega a data atual garantindo o formato correto YYYY-MM-DD
-  const agora = new Date();
-  const hojeStr = agora.toISOString().split('T')[0];
+  // Ajusta rigorosamente para o horário de Brasília (UTC-3)
+  const agoraBrasil = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const hojeStr = agoraBrasil.toISOString().split('T')[0];
   
-  const amanha = new Date(agora);
-  amanha.setDate(agora.getDate() + 1);
-  const amanhaStr = amanha.toISOString().split('T')[0];
+  const amanhaBrasil = new Date(agoraBrasil);
+  amanhaBrasil.setDate(agoraBrasil.getDate() + 1);
+  const amanhaStr = amanhaBrasil.toISOString().split('T')[0];
   
+  console.log(`Buscando jogos para as datas: ${hojeStr} e ${amanhaStr}`);
+
   const [resHoje, resAmanha] = await Promise.all([
     fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }),
     fetch(`https://${API_HOST}/fixtures?date=${amanhaStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } })
@@ -31,9 +33,16 @@ async function buscarAgendaReal() {
   const dataHoje = resHoje.ok ? await resHoje.json() : { response: [] };
   const dataAmanha = resAmanha.ok ? await resAmanha.json() : { response: [] };
 
-  const allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
-  
-  // Se vier vazio, retorna tudo o que tem na API hoje para debug, senão filtra por ligas importantes
+  let allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
+
+  // SE por acaso o dia exato não retornar nada (ex: fuso extremo), busca os jogos AO VIVO do dia para garantir conteúdo na tela
+  if (allFixtures.length === 0) {
+    console.log("Nenhum jogo na data exata. Buscando jogos ao vivo (live=all)...");
+    const resLive = await fetch(`https://${API_HOST}/fixtures?live=all`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } });
+    const dataLive = resLive.ok ? await resLive.json() : { response: [] };
+    allFixtures = dataLive.response || [];
+  }
+
   return allFixtures;
 }
 
@@ -91,10 +100,10 @@ module.exports = async function handler(req, res) {
     const agenda = await buscarAgendaReal();
     
     if (!agenda || agenda.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo retornado pela API para hoje." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado nem ao vivo nem na agenda de hoje." });
     }
 
-    // Limitamos para processar no máximo 25 jogos por vez para proteger o limite da sua API gratuita
+    // Limitamos a 25 jogos para proteger estritamente o limite gratuito da API-Football
     const agendaLimitada = agenda.slice(0, 25);
     const listaPartidas = [];
 
@@ -122,7 +131,7 @@ module.exports = async function handler(req, res) {
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
         
-        const resStats = reqStats.ok ? await reqStats.json() : null;
+        const resStats = reqStats.ok ? await resStats.json() : null;
         const predictions = resStats?.response?.[0] || null;
 
         const homeTeam = item.teams.home.name;
