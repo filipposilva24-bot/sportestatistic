@@ -51,31 +51,32 @@ function calcularMedia(arr) {
   return (soma / arr.length).toFixed(1);
 }
 
+function calcularTaxaAcerto(arr, threshold) {
+  if (!arr || arr.length === 0) return "0%";
+  const acertos = arr.filter(val => val >= threshold).length;
+  return `${Math.round((acertos / arr.length) * 100)}%`;
+}
+
 function gerarAnalisesDoJogo(matchId, refereeName, homeTeam, awayTeam) {
   const seed = matchId % 4;
 
-  // Resumos táticos direcionados para trading
   const textosResumo = [
     `Confronto com forte tendência de jogo aberto pelas pontas. O mandante apresenta alta média de finalizações, enquanto o visitante costuma ceder espaços defensivos no segundo tempo.`,
     `Cenário de muita disputa no meio-campo e forte pressão inicial. Espera-se um ritmo intenso nos primeiros minutos, favorecendo mercados de cantos e finalizações precoces.`,
     `Equipes com características de transição rápida. O mandante tem boa conversão de gols em casa, mas o sistema defensivo do visitante exige atenção para linhas de over cartões.`,
-    `Jogo estudado com tendência de controle de posse pelo mandante. O visitante aposta em contra-ataques rápidos, gerando oportunidades consistentes de chutes no gol.`
+    `Jogo estudado com tendência de controle de posse pelo mandante. O visitante aposta em contra-ataques rápidos, gerando oportunidades consistentemente de chutes no gol.`
   ];
 
-  // Perfil da arbitragem baseado no ID do jogo e nome do árbitro
   const perfisArbitro = [
-    { nivel: "Rigoroso (Cartão Fáceis)", tendencia: "Árbitro com alta média de cartões por jogo. Coíbe faltas duras rapidamente e costuma marcar faltas na entrada da área.", cor: "text-rose-400 bg-rose-950/40 border-rose-900/50" },
+    { nivel: "Rigoroso (Cartões Fáceis)", tendencia: "Árbitro com alta média de cartões por jogo. Coíbe faltas duras rapidamente e costuma marcar faltas na entrada da área.", cor: "text-rose-400 bg-rose-950/40 border-rose-900/50" },
     { nivel: "Permissivo / Segue o Jogo", tendencia: "Deixa o jogo correr mais solto, com menor rigor disciplinar. Ideal para entradas em mercados de gols onde o ritmo não é interrompido.", cor: "text-amber-400 bg-amber-950/40 border-amber-900/50" },
-    { nivel: "Rigor Tecnico / Disciplinado", tendencia: "Rigidez moderada. Puni faltas táticas com rigor e costuma controlar bem os ânimos dos atletas no início de cada tempo.", cor: "text-emerald-400 bg-emerald-950/40 border-emerald-900/50" },
+    { nivel: "Rigor Técnico / Disciplinado", tendencia: "Rigidez moderada. Puni faltas táticas com rigor e costuma controlar bem os ânimos dos atletas no início de cada tempo.", cor: "text-emerald-400 bg-emerald-950/40 border-emerald-900/50" },
     { nivel: "Atento a Simulações", tendencia: "Árbitro rigoroso com reclamações e simulações na grande área. Histórico de distribuição equilibrada de cartões entre mandante e visitante.", cor: "text-blue-400 bg-blue-950/40 border-blue-900/50" }
   ];
 
-  const resumo = textosResumo[seed];
-  const arbitroAnalise = perfisArbitro[seed];
-
   return {
-    resumoTexto: resumo,
-    arbitroPerfil: arbitroAnalise
+    resumoTexto: textosResumo[seed],
+    arbitroPerfil: perfisArbitro[seed]
   };
 }
 
@@ -109,6 +110,13 @@ function gerarEstatisticasCompletas(matchId) {
         chutesNoGol: calcularMedia(homeCh),
         escanteios: calcularMedia(homeEsc),
         cartoes: calcularMedia(homeCar)
+      },
+      taxas: {
+        gols: calcularTaxaAcerto(homeGols, 1),        // >= 1 gol (Over 0.5)
+        finalizacoes: calcularTaxaAcerto(homeFin, 12),  // >= 12 finalizações
+        chutesNoGol: calcularTaxaAcerto(homeCh, 4),    // >= 4 chutes no gol
+        escanteios: calcularTaxaAcerto(homeEsc, 5),    // >= 5 escanteios
+        cartoes: calcularTaxaAcerto(homeCar, 2)      // >= 2 cartões
       }
     },
     away: {
@@ -124,6 +132,13 @@ function gerarEstatisticasCompletas(matchId) {
         chutesNoGol: calcularMedia(awayCh),
         escanteios: calcularMedia(awayEsc),
         cartoes: calcularMedia(awayCar)
+      },
+      taxas: {
+        gols: calcularTaxaAcerto(awayGols, 1),
+        finalizacoes: calcularTaxaAcerto(awayFin, 11),
+        chutesNoGol: calcularTaxaAcerto(awayCh, 3),
+        escanteios: calcularTaxaAcerto(awayEsc, 4),
+        cartoes: calcularTaxaAcerto(awayCar, 2)
       }
     }
   };
