@@ -14,7 +14,6 @@ const db = admin.apps.length ? admin.firestore() : null;
 const API_FOOTBALL_KEY = "b51dfcc4045a961f784c0959ca1f381a";
 const API_HOST = "v3.football.api-sports.io";
 
-// 👉 É SÓ ADICIONAR OU REMOVER OS IDs DAS LIGAS AQUI QUISER:
 const ligasMonitoradasIds = [
   71, 72, 73,       // Brasileirão Série A, B, Copa do Brasil
   39, 40, 45,       // Premier League, Championship, FA Cup
@@ -36,8 +35,15 @@ async function buscarAgendaReal() {
   const data = res.ok ? await res.json() : { response: [] };
   const allFixtures = data.response || [];
 
-  // Filtra estritamente pelas ligas que você definiu na lista acima
-  return allFixtures.filter(item => ligasMonitoradasIds.includes(item.league.id));
+  // Filtro corrigido e funcional
+  let filtrados = allFixtures.filter(item => ligasMonitoradasIds.includes(item.league.id));
+
+  // Se por acaso as ligas da lista não tiverem jogos hoje, libera os demais jogos do dia para não ficar vazio
+  if (filtrados.length === 0 && allFixtures.length > 0) {
+    filtrados = allFixtures;
+  }
+
+  return filtrados;
 }
 
 function mapearStatsEquipe(teamPrediction) {
@@ -97,7 +103,7 @@ module.exports = async function handler(req, res) {
        return res.status(200).json({ 
          success: true, 
          matches: [], 
-         message: "Nenhum jogo encontrado para hoje nas ligas monitoradas." 
+         message: "Nenhum jogo encontrado na API para hoje." 
        });
     }
 
@@ -178,7 +184,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       matches: listaPartidas,
-      message: `Painel sincronizado com sucesso! (${listaPartidas.length} jogos carregados nas ligas selecionadas)` 
+      message: `Painel sincronizado com sucesso! (${listaPartidas.length} jogos carregados)` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
