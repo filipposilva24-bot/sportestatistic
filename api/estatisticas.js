@@ -12,7 +12,7 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 const db = admin.apps.length ? admin.firestore() : null;
 
 // Insira aqui a sua chave da API-Football
-const API_FOOTBALL_KEY = "SUA_CHAVE_DA_API_FOOTBALL_AQUI";
+const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
 const API_HOST = "v3.football.api-sports.io";
 
 async function buscarJogosDoDia() {
