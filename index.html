@@ -10,8 +10,8 @@
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-6 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Análises Táticas</h1>
-      <p class="text-sm text-gray-400 mt-1">Jogos de Hoje e Amanhã com Resumo do Jogo e Perfil de Arbitragem</p>
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico com Probabilidades</h1>
+      <p class="text-sm text-gray-400 mt-1">Jogos de Hoje e Amanhã com Médias, Taxas de Acerto e Análises</p>
     </header>
 
     <!-- Barra de Filtros -->
@@ -58,7 +58,8 @@
         else if (res === 'D') bg = "bg-rose-600 text-white font-bold";
         html += `<th class="py-1 px-1"><span class="inline-block w-4 h-4 rounded text-[9px] ${bg}">${res}</span></th>`;
       }
-      html += `<th class="py-1 px-2 text-emerald-400 font-bold bg-gray-900/80 rounded">Média</th>`;
+      html += `<th class="py-1 px-1.5 text-emerald-400 font-bold bg-gray-900/80 rounded">Média</th>`;
+      html += `<th class="py-1 px-1.5 text-cyan-400 font-bold bg-gray-900/80 rounded">% Acerto</th>`;
       html += `</tr>`;
 
       const metrics = [
@@ -77,7 +78,10 @@
           html += `<td class="py-1 px-1 font-semibold text-white">${val}</td>`;
         }
         let mediaVal = tData.medias && tData.medias[m.key] ? tData.medias[m.key] : '0.0';
-        html += `<td class="py-1 px-2 font-bold text-emerald-400 bg-gray-900/80">${mediaVal}</td>`;
+        let taxaVal = tData.taxas && tData.taxas[m.key] ? tData.taxas[m.key] : '0%';
+        
+        html += `<td class="py-1 px-1.5 font-bold text-emerald-400 bg-gray-900/80">${mediaVal}</td>`;
+        html += `<td class="py-1 px-1.5 font-bold text-cyan-400 bg-gray-900/80">${taxaVal}</td>`;
         html += `</tr>`;
       });
 
@@ -149,7 +153,7 @@
             const dataObj = new Date(p.matchDate);
             const options = { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
             const dataFormatada = new Intl.DateTimeFormat('pt-BR', options).format(dataObj);
-            const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
+            const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {}, taxas: {} }, away: { forma: [], medias: {}, taxas: {} } };
             const analise = p.analisePartida || "Análise tática em processamento.";
             const arbitroObj = p.analiseArbitro || { nivel: "Não avaliado", tendencia: "Sem dados suficientes.", cor: "text-gray-400 bg-gray-800 border-gray-700" };
             
@@ -171,7 +175,7 @@
                     <p class="leading-relaxed text-gray-300">${analise}</p>
                   </div>
 
-                  <!-- Tabelas de Histórico -->
+                  <!-- Tabelas de Histórico com Probabilidades -->
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
                     <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
                       <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
