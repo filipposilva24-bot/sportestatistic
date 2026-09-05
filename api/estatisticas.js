@@ -14,41 +14,30 @@ const db = admin.apps.length ? admin.firestore() : null;
 const API_FOOTBALL_KEY = "b51dfcc4045a961f784c0959ca1f381a";
 const API_HOST = "v3.football.api-sports.io";
 
+// 👉 É SÓ ADICIONAR OU REMOVER OS IDs DAS LIGAS AQUI QUISER:
+const ligasMonitoradasIds = [
+  71, 72, 73,       // Brasileirão Série A, B, Copa do Brasil
+  39, 40, 45,       // Premier League, Championship, FA Cup
+  140, 141,         // La Liga, Segunda División
+  135, 136,         // Serie A, Serie B (Itália)
+  78, 79,           // Bundesliga 1 e 2
+  61, 62,           // Ligue 1 e 2
+  2, 3,             // Champions League, Europa League
+  5, 34, 32         // Seleções / Data FIFA / Eliminatórias
+];
+
 async function buscarAgendaReal() {
-  // Pega a data atual no formato YYYY-MM-DD UTC para evitar erros de fuso na Vercel
   const hojeStr = new Date().toISOString().split('T')[0];
   
-  console.log(`Consultando API-Football para a data: ${hojeStr}`);
-
-  // 1. Tenta buscar os jogos do dia atual
   const res = await fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { 
     headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
   });
 
   const data = res.ok ? await res.json() : { response: [] };
-  let fixtures = data.response || [];
+  const allFixtures = data.response || [];
 
-  // 2. BACKUP DE SEGURANÇA: Se a data de hoje vier vazia, busca os jogos AO VIVO ou os próximos do dia
-  if (fixtures.length === 0) {
-    console.log("Data exata retornou vazia. Buscando jogos ao vivo (live=all)...");
-    const resLive = await fetch(`https://${API_HOST}/fixtures?live=all`, { 
-      headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
-    });
-    const dataLive = resLive.ok ? await resLive.json() : { response: [] };
-    fixtures = dataLive.response || [];
-  }
-
-  // 3. SE AINDA ESTIVER VAZIO, pega a próxima rodada geral disponível (evita tela preta/vazia)
-  if (fixtures.length === 0) {
-    console.log("Nenhum ao vivo. Buscando fixtures gerais...");
-    const resGeneral = await fetch(`https://${API_HOST}/fixtures?season=2026&league=39`, { 
-      headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
-    });
-    const dataGeneral = resGeneral.ok ? await resGeneral.json() : { response: [] };
-    fixtures = dataGeneral.response || [];
-  }
-
-  return fixtures;
+  // Filtra estritamente pelas ligas que você definiu na lista acima
+  return allFixtures.filter(item => ligasMonitoradasIds.includes(item.league.id));
 }
 
 function mapearStatsEquipe(teamPrediction) {
@@ -108,11 +97,10 @@ module.exports = async function handler(req, res) {
        return res.status(200).json({ 
          success: true, 
          matches: [], 
-         message: "Nenhum jogo retornado pela API. Verifique se há partidas oficiais hoje." 
+         message: "Nenhum jogo encontrado para hoje nas ligas monitoradas." 
        });
     }
 
-    // TRAVA DE SEGURANÇA DA API: Processa no máximo 15 jogos por vez para economizar suas requisições diárias
     const agendaLimitada = agenda.slice(0, 15);
     const listaPartidas = [];
 
@@ -120,7 +108,6 @@ module.exports = async function handler(req, res) {
       try {
         const matchId = item.fixture.id;
         
-        // 1. SISTEMA DE CACHE NO FIREBASE (Garante 0 gasto de API após a 1ª consulta do dia)
         let docRef = null;
         if (db) {
           docRef = db.collection('match_stats').doc(String(matchId));
@@ -130,7 +117,6 @@ module.exports = async function handler(req, res) {
             const dataCache = docSnap.data();
             const diffHoras = (new Date() - new Date(dataCache.updatedAt)) / (1000 * 60 * 60);
             
-            // Se o cache tiver menos de 12 horas, PULA A REQUISIÇÃO DA API
             if (diffHoras < 12) {
               listaPartidas.push(dataCache);
               continue; 
@@ -138,7 +124,6 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        // 2. BUSCA DADOS REAIS NA API (Apenas se não tiver cache válido)
         const reqStats = await fetch(`https://${API_HOST}/predictions?fixture=${matchId}`, { 
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
@@ -180,7 +165,6 @@ module.exports = async function handler(req, res) {
           updatedAt: new Date().toISOString()
         };
 
-        // 3. SALVA NO FIREBASE PARA ECONOMIZAR REQUISIÇÕES FUTURAS
         if (db) {
           await docRef.set(docData, { merge: true });
         }
@@ -194,7 +178,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       matches: listaPartidas,
-      message: `Painel sincronizado com sucesso! (${listaPartidas.length} jogos carregados)` 
+      message: `Painel sincronizado com sucesso! (${listaPartidas.length} jogos carregados nas ligas selecionadas)` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
