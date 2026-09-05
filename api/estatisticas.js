@@ -11,42 +11,39 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-// Insira aqui a sua chave da API-Football
 const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
 const API_HOST = "v3.football.api-sports.io";
 
-async function buscarJogosDoDia() {
-  const hoje = new Date().toISOString().split('T')[0];
+async function buscarJogosHojeEAmanha() {
+  const agora = new Date();
+  const hojeStr = agora.toISOString().split('T')[0];
   
-  const res = await fetch(`https://${API_HOST}/fixtures?date=${hoje}`, { 
-    headers: { 
-      'x-apisports-key': API_FOOTBALL_KEY 
-    } 
-  });
+  const amanha = new Date(agora);
+  amanha.setDate(agora.getDate() + 1);
+  const amanhaStr = amanha.toISOString().split('T')[0];
   
-  if (!res.ok) throw new Error(`Erro na API-Football: ${res.status}`);
-  const data = await res.json();
-  if (!data.response) return [];
+  // Faz as requisições para hoje e amanhã em paralelo
+  const [resHoje, resAmanha] = await Promise.all([
+    fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }),
+    fetch(`https://${API_HOST}/fixtures?date=${amanhaStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } })
+  ]);
 
-  // IDs oficiais da API-Football para Ligas Principais, Segundas Divisões e Copas Nacionais:
-  // Brasil: Série A (71), Série B (72), Copa do Brasil (73)
-  // Inglaterra: Premier League (39), Championship (40), FA Cup (45)
-  // Espanha: La Liga (140), Segunda División (141), Copa del Rey (143)
-  // Itália: Serie A (135), Serie B (136), Coppa Italia (137)
-  // Alemanha: Bundesliga (78), 2. Bundesliga (79), DFB Pokal (81)
-  // França: Ligue 1 (61), Ligue 2 (62)
-  // Europa: Champions League (2)
+  const dataHoje = resHoje.ok ? await resHoje.json() : { response: [] };
+  const dataAmanha = resAmanha.ok ? await resAmanha.json() : { response: [] };
+
+  const allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
+
   const ligasMonitoradasIds = [
-    71, 72, 73,       // Brasil
-    39, 40, 45,       // Inglaterra
-    140, 141, 143,    // Espanha
-    135, 136, 137,    // Itália
-    78, 79, 81,       // Alemanha
-    61, 62,           // França
+    71, 72, 73,       // Brasil (Série A, B, Copa do Brasil)
+    39, 40, 45,       // Inglaterra (Premier, Championship, FA Cup)
+    140, 141, 143,    // Espanha (La Liga, Segunda, Copa del Rey)
+    135, 136, 137,    // Itália (Serie A, B, Coppa Italia)
+    78, 79, 81,       // Alemanha (Bundesliga, 2. Bundesliga, DFB Pokal)
+    61, 62,           // França (Ligue 1, 2)
     2                 // Champions League
   ];
   
-  return data.response.filter(item => ligasMonitoradasIds.includes(item.league.id));
+  return allFixtures.filter(item => ligasMonitoradasIds.includes(item.league.id));
 }
 
 function calcularMedia(arr) {
@@ -57,22 +54,17 @@ function calcularMedia(arr) {
 
 function gerarEstatisticasCompletas(matchId) {
   const seed = matchId % 4;
-
   const homeForm = ['V', 'V', 'E', 'D', 'V'];
   const awayForm = ['D', 'E', 'V', 'D', 'V'];
 
   const homeGols = [2, 1, 1, 0, 3].map((v, i) => Math.max(0, v + ((seed + i) % 2) - 1));
   const awayGols = [1, 0, 2, 1, 1].map((v, i) => Math.max(0, v + ((seed + i) % 2)));
-
   const homeFin = [14, 16, 12, 10, 15].map(v => v + seed);
   const awayFin = [11, 9, 13, 10, 12].map(v => v + (seed % 2));
-
   const homeCh = [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2)));
   const awayCh = [4, 3, 5, 4, 3];
-
   const homeEsc = [6, 5, 7, 4, 6].map(v => v + (seed % 2));
   const awayEsc = [5, 4, 6, 3, 5];
-
   const homeCar = [2, 1, 3, 2, 1];
   const awayCar = [3, 2, 2, 4, 1];
 
@@ -112,10 +104,10 @@ function gerarEstatisticasCompletas(matchId) {
 
 module.exports = async function handler(req, res) {
   try {
-    const fixtures = await buscarJogosDoDia();
+    const fixtures = await buscarJogosHojeEAmanha();
     
     if (!fixtures || fixtures.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo das ligas e copas monitoradas agendado para hoje." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã." });
     }
 
     const listaPartidas = [];
