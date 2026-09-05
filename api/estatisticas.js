@@ -11,7 +11,7 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
+const API_FOOTBALL_KEY = "b51dfcc4045a961f784c0959ca1f381a";
 const API_HOST = "v3.football.api-sports.io";
 
 async function buscarAgendaReal() {
