@@ -10,8 +10,8 @@
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-6 text-center">
-      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Filtros Avançados</h1>
-      <p class="text-sm text-gray-400 mt-1">Jogos de Hoje e Amanhã com histórico e médias por equipe</p>
+      <h1 class="text-3xl font-extrabold text-emerald-400">📊 Painel Analítico & Análises Táticas</h1>
+      <p class="text-sm text-gray-400 mt-1">Jogos de Hoje e Amanhã com Resumo do Jogo e Perfil de Arbitragem</p>
     </header>
 
     <!-- Barra de Filtros -->
@@ -150,34 +150,53 @@
             const options = { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
             const dataFormatada = new Intl.DateTimeFormat('pt-BR', options).format(dataObj);
             const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
+            const analise = p.analisePartida || "Análise tática em processamento.";
+            const arbitroObj = p.analiseArbitro || { nivel: "Não avaliado", tendencia: "Sem dados suficientes.", cor: "text-gray-400 bg-gray-800 border-gray-700" };
             
             htmlGeral += `
-              <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md">
-                <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
-                  <span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300">📅 ${dataFormatada}</span>
-                  <span class="text-emerald-400 font-medium">${p.statusPartida || 'Agendado'}</span>
-                </div>
-                
-                <div class="text-center font-bold text-white text-base my-2">
-                  ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
-                  <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                    <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
-                    ${renderTabelaHistorico(u5.home)}
+              <div class="bg-gray-900 border border-gray-800/80 rounded-xl p-4 hover:border-emerald-500/40 transition-all shadow-md flex flex-col justify-between">
+                <div>
+                  <div class="flex justify-between items-center text-xs text-gray-400 mb-2">
+                    <span class="bg-gray-800 px-2 py-0.5 rounded text-gray-300">📅 ${dataFormatada}</span>
+                    <span class="text-emerald-400 font-medium">${p.statusPartida || 'Agendado'}</span>
+                  </div>
+                  
+                  <div class="text-center font-bold text-white text-base my-2">
+                    ${p.homeTeam} <span class="text-gray-500 font-normal mx-1">vs</span> ${p.awayTeam}
                   </div>
 
-                  <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
-                    <div class="text-blue-400 font-semibold mb-1 text-xs truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
-                    ${renderTabelaHistorico(u5.away)}
+                  <!-- Resumo & Análise do Jogo -->
+                  <div class="bg-gray-950/80 border border-gray-800/80 rounded-lg p-2.5 my-3 text-xs text-gray-300">
+                    <span class="text-emerald-400 font-semibold block mb-1">📝 Resumo & Análise do Confronto:</span>
+                    <p class="leading-relaxed text-gray-300">${analise}</p>
+                  </div>
+
+                  <!-- Tabelas de Histórico -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 my-3">
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                      <div class="text-emerald-400 font-semibold mb-1 text-xs truncate" title="${p.homeTeam}">🏠 ${p.homeTeam}</div>
+                      ${renderTabelaHistorico(u5.home)}
+                    </div>
+
+                    <div class="bg-gray-950/70 p-2.5 rounded-lg border border-gray-800">
+                      <div class="text-blue-400 font-semibold mb-1 text-xs truncate" title="${p.awayTeam}">✈️ ${p.awayTeam}</div>
+                      ${renderTabelaHistorico(u5.away)}
+                    </div>
+                  </div>
+
+                  <!-- Análise da Arbitragem -->
+                  <div class="bg-gray-950/80 border border-gray-800/80 rounded-lg p-2.5 my-3 text-xs">
+                    <div class="flex justify-between items-center mb-1">
+                      <span class="text-gray-400 font-semibold">⚖️ Árbitro: <strong class="text-white">${p.arbitro}</strong></span>
+                      <span class="px-2 py-0.5 rounded border text-[10px] font-bold ${arbitroObj.cor}">${arbitroObj.nivel}</span>
+                    </div>
+                    <p class="text-gray-400 italic">${arbitroObj.tendencia}</p>
                   </div>
                 </div>
                 
-                <div class="text-xs text-gray-400 pt-2 border-t border-gray-800/80 flex justify-between items-center">
-                  <span>⚖️ Árbitro: <strong class="text-gray-300">${p.arbitro}</strong></span>
-                  <span class="text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-medium text-[11px]">
-                    Pronto para Entrada
+                <div class="pt-2 border-t border-gray-800/80 flex justify-end">
+                  <span class="text-emerald-400 bg-emerald-950/50 px-2.5 py-1 rounded border border-emerald-900/50 font-medium text-xs">
+                    Pronto para Entrada 🎯
                   </span>
                 </div>
               </div>
