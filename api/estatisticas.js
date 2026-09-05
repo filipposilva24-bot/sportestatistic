@@ -14,35 +14,11 @@ const db = admin.apps.length ? admin.firestore() : null;
 const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
 const API_HOST = "v3.football.api-sports.io";
 
-// Ligas focadas para otimizar requisições e garantir jogos em períodos de Data FIFA e principais centros
-const ligasMonitoradasIds = [
-  // 🇧🇷 Brasil & América do Sul
-  71, 72, 73,       // Brasileirão Série A, B, Copa do Brasil
-  13, 11,           // Libertadores, Sul-Americana
-  128,              // Argentina Primera División
-
-  // 🌍 Europa (Top Ligas)
-  39, 40, 45,       // Inglaterra (Premier, Championship, FA Cup)
-  140, 141, 143,    // Espanha (La Liga, Segunda, Copa)
-  135, 136, 137,    // Itália (Serie A, B, Coppa)
-  78, 79, 81,       // Alemanha (Bundesliga, 2. Bundesliga, DFB)
-  61, 62,           // França (Ligue 1, 2)
-  94,               // Portugal (Primeira Liga)
-  74,               // Holanda (Eredivisie)
-
-  // 🏆 Internacionais / Data FIFA
-  2, 3,             // Champions League, Europa League
-  5,                // UEFA Nations League
-  34, 32,           // Eliminatórias Copa do Mundo (América do Sul e Europa)
-  
-  // 🔥 Ligas Alternativas Fortes
-  253,              // MLS (EUA)
-  307               // Saudi Pro League (Arábia Saudita)
-];
-
 async function buscarAgendaReal() {
+  // Pega a data atual garantindo o formato correto YYYY-MM-DD
   const agora = new Date();
   const hojeStr = agora.toISOString().split('T')[0];
+  
   const amanha = new Date(agora);
   amanha.setDate(agora.getDate() + 1);
   const amanhaStr = amanha.toISOString().split('T')[0];
@@ -56,16 +32,16 @@ async function buscarAgendaReal() {
   const dataAmanha = resAmanha.ok ? await resAmanha.json() : { response: [] };
 
   const allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
-  return allFixtures.filter(item => ligasMonitoradasIds.includes(item.league.id));
+  
+  // Se vier vazio, retorna tudo o que tem na API hoje para debug, senão filtra por ligas importantes
+  return allFixtures;
 }
 
-// Função auxiliar para mapear dados reais da API de forma segura
 function mapearStatsEquipe(teamPrediction) {
   if (!teamPrediction) return null;
   
   const formaStr = teamPrediction.league?.form || "EEEEE";
   const formaArr = formaStr.split('').slice(-5).map(char => char === 'W' ? 'V' : char === 'D' ? 'E' : 'D');
-  
   const mediaGolsFor = parseFloat(teamPrediction.last_5?.goals?.for?.average || 0);
   
   const dist = (media) => [
@@ -115,16 +91,17 @@ module.exports = async function handler(req, res) {
     const agenda = await buscarAgendaReal();
     
     if (!agenda || agenda.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã nas ligas monitoradas." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo retornado pela API para hoje." });
     }
 
+    // Limitamos para processar no máximo 25 jogos por vez para proteger o limite da sua API gratuita
+    const agendaLimitada = agenda.slice(0, 25);
     const listaPartidas = [];
 
-    for (const item of agenda) {
+    for (const item of agendaLimitada) {
       try {
         const matchId = item.fixture.id;
         
-        // 1. ESTRATÉGIA DE CACHE NO FIREBASE
         let docRef = null;
         if (db) {
           docRef = db.collection('match_stats').doc(String(matchId));
@@ -141,7 +118,6 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        // 2. BUSCA DADOS REAIS NA API-FOOTBALL
         const reqStats = await fetch(`https://${API_HOST}/predictions?fixture=${matchId}`, { 
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
