@@ -147,7 +147,8 @@
 
           partidas.forEach(p => {
             const dataObj = new Date(p.matchDate);
-            const dataFormatada = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const options = { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
+            const dataFormatada = new Intl.DateTimeFormat('pt-BR', options).format(dataObj);
             const u5 = p.ultimos5Jogos || { home: { forma: [], medias: {} }, away: { forma: [], medias: {} } };
             
             htmlGeral += `
@@ -196,13 +197,17 @@
       const ligaFiltro = document.getElementById('filtro-liga').value;
       const dataFiltro = document.getElementById('filtro-data').value;
 
-      const hojeStr = new Date().toISOString().split('T')[0];
+      const optionsDate = { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' };
+      const formatter = new Intl.DateTimeFormat('en-CA', optionsDate);
+      
+      const hojeStr = formatter.format(new Date());
+      
       const amanhaObj = new Date();
       amanhaObj.setDate(amanhaObj.getDate() + 1);
-      const amanhaStr = amanhaObj.toISOString().split('T')[0];
+      const amanhaStr = formatter.format(amanhaObj);
 
       const filtradas = todasAsPartidas.filter(m => {
-        const dataJogoStr = m.matchDate.split('T')[0];
+        const dataJogoStr = formatter.format(new Date(m.matchDate));
 
         if (paisFiltro && m.country !== paisFiltro) return false;
         if (ligaFiltro && m.league !== ligaFiltro) return false;
