@@ -11,36 +11,44 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-// Nova Chave da API-Football
 const API_FOOTBALL_KEY = "b51dfcc4045a961f784c0959ca1f381a";
 const API_HOST = "v3.football.api-sports.io";
 
 async function buscarAgendaReal() {
-  const agoraBrasil = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  const hojeStr = agoraBrasil.toISOString().split('T')[0];
+  // Pega a data atual no formato YYYY-MM-DD UTC para evitar erros de fuso na Vercel
+  const hojeStr = new Date().toISOString().split('T')[0];
   
-  const amanhaBrasil = new Date(agoraBrasil);
-  amanhaBrasil.setDate(agoraBrasil.getDate() + 1);
-  const amanhaStr = amanhaBrasil.toISOString().split('T')[0];
-  
-  const [resHoje, resAmanha] = await Promise.all([
-    fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }),
-    fetch(`https://${API_HOST}/fixtures?date=${amanhaStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } })
-  ]);
+  console.log(`Consultando API-Football para a data: ${hojeStr}`);
 
-  const dataHoje = resHoje.ok ? await resHoje.json() : { response: [] };
-  const dataAmanha = resAmanha.ok ? await resAmanha.json() : { response: [] };
+  // 1. Tenta buscar os jogos do dia atual
+  const res = await fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { 
+    headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
+  });
 
-  let allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
+  const data = res.ok ? await res.json() : { response: [] };
+  let fixtures = data.response || [];
 
-  // Fallback caso o dia exato venha vazio: busca os jogos ao vivo do momento
-  if (allFixtures.length === 0) {
-    const resLive = await fetch(`https://${API_HOST}/fixtures?live=all`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } });
+  // 2. BACKUP DE SEGURANÇA: Se a data de hoje vier vazia, busca os jogos AO VIVO ou os próximos do dia
+  if (fixtures.length === 0) {
+    console.log("Data exata retornou vazia. Buscando jogos ao vivo (live=all)...");
+    const resLive = await fetch(`https://${API_HOST}/fixtures?live=all`, { 
+      headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
+    });
     const dataLive = resLive.ok ? await resLive.json() : { response: [] };
-    allFixtures = dataLive.response || [];
+    fixtures = dataLive.response || [];
   }
 
-  return allFixtures;
+  // 3. SE AINDA ESTIVER VAZIO, pega a próxima rodada geral disponível (evita tela preta/vazia)
+  if (fixtures.length === 0) {
+    console.log("Nenhum ao vivo. Buscando fixtures gerais...");
+    const resGeneral = await fetch(`https://${API_HOST}/fixtures?season=2026&league=39`, { 
+      headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
+    });
+    const dataGeneral = resGeneral.ok ? await resGeneral.json() : { response: [] };
+    fixtures = dataGeneral.response || [];
+  }
+
+  return fixtures;
 }
 
 function mapearStatsEquipe(teamPrediction) {
@@ -97,18 +105,22 @@ module.exports = async function handler(req, res) {
     const agenda = await buscarAgendaReal();
     
     if (!agenda || agenda.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã." });
+       return res.status(200).json({ 
+         success: true, 
+         matches: [], 
+         message: "Nenhum jogo retornado pela API. Verifique se há partidas oficiais hoje." 
+       });
     }
 
-    // Limite de 25 jogos por requisição para proteger o uso da API gratuita
-    const agendaLimitada = agenda.slice(0, 25);
+    // TRAVA DE SEGURANÇA DA API: Processa no máximo 15 jogos por vez para economizar suas requisições diárias
+    const agendaLimitada = agenda.slice(0, 15);
     const listaPartidas = [];
 
     for (const item of agendaLimitada) {
       try {
         const matchId = item.fixture.id;
         
-        // 1. Verificação de Cache no Firebase
+        // 1. SISTEMA DE CACHE NO FIREBASE (Garante 0 gasto de API após a 1ª consulta do dia)
         let docRef = null;
         if (db) {
           docRef = db.collection('match_stats').doc(String(matchId));
@@ -118,19 +130,20 @@ module.exports = async function handler(req, res) {
             const dataCache = docSnap.data();
             const diffHoras = (new Date() - new Date(dataCache.updatedAt)) / (1000 * 60 * 60);
             
-            if (diffHoras < 6) {
+            // Se o cache tiver menos de 12 horas, PULA A REQUISIÇÃO DA API
+            if (diffHoras < 12) {
               listaPartidas.push(dataCache);
               continue; 
             }
           }
         }
 
-        // 2. Busca dados reais de previsões na API
+        // 2. BUSCA DADOS REAIS NA API (Apenas se não tiver cache válido)
         const reqStats = await fetch(`https://${API_HOST}/predictions?fixture=${matchId}`, { 
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
         
-        const resStats = reqStats.ok ? await reqStats.json() : null;
+        const resStats = reqStats.ok ? await resStats.json() : null;
         const predictions = resStats?.response?.[0] || null;
 
         const homeTeam = item.teams.home.name;
@@ -159,7 +172,7 @@ module.exports = async function handler(req, res) {
           liveMomentum,
           arbitro: item.fixture.referee || "Não divulgado",
           ultimos5Jogos: { home: statsHome, away: statsAway },
-          analisePartida: predictions?.advice || "Análise baseada no momento atual das equipes.",
+          analisePartida: predictions?.advice || "Análise tática baseada nas tendências recentes das equipes.",
           analiseArbitro: { nivel: "Aguardando Leitura", tendencia: "Sem histórico suficiente", cor: "text-blue-400 bg-blue-950/40 border-blue-900/50" },
           clima: "☀️ Tempo Estável",
           timing: "⏱️ Análise Padrão de 90'",
@@ -167,7 +180,7 @@ module.exports = async function handler(req, res) {
           updatedAt: new Date().toISOString()
         };
 
-        // 3. Salva no Cache do Firebase
+        // 3. SALVA NO FIREBASE PARA ECONOMIZAR REQUISIÇÕES FUTURAS
         if (db) {
           await docRef.set(docData, { merge: true });
         }
@@ -181,7 +194,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       matches: listaPartidas,
-      message: `Dados processados com sucesso! (${listaPartidas.length} jogos)` 
+      message: `Painel sincronizado com sucesso! (${listaPartidas.length} jogos carregados)` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
