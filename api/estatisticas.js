@@ -11,63 +11,74 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-const FOOTBALL_DATA_KEY = "f8928c309caf420b9cfab4a8a906de73";
-const RAPID_API_KEY = "dd3bf28953mshde87a075504e10d1d7937jsnbb647204dfe3";
-const RAPID_API_HOST = "sportapi7.p.rapidapi.com";
+// Insira aqui a sua chave da API-Football
+const API_FOOTBALL_KEY = "SUA_CHAVE_DA_API_FOOTBALL_AQUI";
+const API_HOST = "v3.football.api-sports.io";
 
 async function buscarJogosDoDia() {
-  const agora = new Date();
-  const hoje = agora.toISOString().split('T')[0];
+  const hoje = new Date().toISOString().split('T')[0];
   
-  const res = await fetch(`https://api.football-data.org/v4/matches?date=${hoje}`, { 
-    headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY } 
+  const res = await fetch(`https://${API_HOST}/fixtures?date=${hoje}`, { 
+    headers: { 
+      'x-apisports-key': API_FOOTBALL_KEY 
+    } 
   });
   
-  if (!res.ok) throw new Error(`Erro football-data: ${res.status}`);
+  if (!res.ok) throw new Error(`Erro na API-Football: ${res.status}`);
   const data = await res.json();
-  if (!data.matches) return [];
+  if (!data.response) return [];
 
-  const ligasElite = ['CL', 'BL1', 'BSA', 'PD', 'FL1', 'EC', 'SA', 'PL'];
-  return data.matches.filter(match => ligasElite.includes(match.competition?.code)).slice(0, 10);
+  // IDs oficiais da API-Football para Ligas Principais, Segundas Divisões e Copas Nacionais:
+  // Brasil: Série A (71), Série B (72), Copa do Brasil (73)
+  // Inglaterra: Premier League (39), Championship (40), FA Cup (45)
+  // Espanha: La Liga (140), Segunda División (141), Copa del Rey (143)
+  // Itália: Serie A (135), Serie B (136), Coppa Italia (137)
+  // Alemanha: Bundesliga (78), 2. Bundesliga (79), DFB Pokal (81)
+  // França: Ligue 1 (61), Ligue 2 (62)
+  // Europa: Champions League (2)
+  const ligasMonitoradasIds = [
+    71, 72, 73,       // Brasil
+    39, 40, 45,       // Inglaterra
+    140, 141, 143,    // Espanha
+    135, 136, 137,    // Itália
+    78, 79, 81,       // Alemanha
+    61, 62,           // França
+    2                 // Champions League
+  ];
+  
+  return data.response.filter(item => ligasMonitoradasIds.includes(item.league.id));
 }
 
 function calcularMedia(arr) {
+  if (!arr || arr.length === 0) return "0.0";
   const soma = arr.reduce((acc, val) => acc + val, 0);
   return (soma / arr.length).toFixed(1);
 }
 
-function gerarHistoricoUltimos5Jogos(matchId) {
+function gerarEstatisticasCompletas(matchId) {
   const seed = matchId % 4;
-  
-  const formasHome = [
-    ['V', 'V', 'E', 'D', 'V'],
-    ['V', 'E', 'V', 'V', 'D'],
-    ['D', 'V', 'E', 'V', 'V'],
-    ['E', 'V', 'V', 'D', 'V']
-  ];
-  
-  const formasAway = [
-    ['D', 'E', 'V', 'D', 'V'],
-    ['E', 'D', 'V', 'E', 'V'],
-    ['V', 'D', 'D', 'V', 'E'],
-    ['D', 'V', 'D', 'E', 'V']
-  ];
+
+  const homeForm = ['V', 'V', 'E', 'D', 'V'];
+  const awayForm = ['D', 'E', 'V', 'D', 'V'];
 
   const homeGols = [2, 1, 1, 0, 3].map((v, i) => Math.max(0, v + ((seed + i) % 2) - 1));
-  const homeFin = [14, 16, 12, 10, 15].map(v => v + seed);
-  const homeCh = [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2)));
-  const homeEsc = [6, 5, 7, 4, 6].map(v => v + (seed % 2));
-  const homeCar = [2, 1, 3, 2, 1];
-
   const awayGols = [1, 0, 2, 1, 1].map((v, i) => Math.max(0, v + ((seed + i) % 2)));
+
+  const homeFin = [14, 16, 12, 10, 15].map(v => v + seed);
   const awayFin = [11, 9, 13, 10, 12].map(v => v + (seed % 2));
+
+  const homeCh = [5, 6, 4, 3, 6].map(v => Math.max(1, v + (seed % 2)));
   const awayCh = [4, 3, 5, 4, 3];
+
+  const homeEsc = [6, 5, 7, 4, 6].map(v => v + (seed % 2));
   const awayEsc = [5, 4, 6, 3, 5];
+
+  const homeCar = [2, 1, 3, 2, 1];
   const awayCar = [3, 2, 2, 4, 1];
 
   return {
     home: {
-      forma: formasHome[seed],
+      forma: homeForm,
       gols: homeGols,
       finalizacoes: homeFin,
       chutesNoGol: homeCh,
@@ -82,7 +93,7 @@ function gerarHistoricoUltimos5Jogos(matchId) {
       }
     },
     away: {
-      forma: formasAway[seed],
+      forma: awayForm,
       gols: awayGols,
       finalizacoes: awayFin,
       chutesNoGol: awayCh,
@@ -101,34 +112,37 @@ function gerarHistoricoUltimos5Jogos(matchId) {
 
 module.exports = async function handler(req, res) {
   try {
-    const matches = await buscarJogosDoDia();
+    const fixtures = await buscarJogosDoDia();
     
-    if (!matches || matches.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo de elite agendado para hoje." });
+    if (!fixtures || fixtures.length === 0) {
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo das ligas e copas monitoradas agendado para hoje." });
     }
 
     const listaPartidas = [];
 
-    for (const item of matches) {
+    for (const item of fixtures) {
       try {
-        const matchId = item.id;
-        const home = item.homeTeam.name;
-        const away = item.awayTeam.name;
-        const league = item.competition.name;
-        const referee = (item.referees && item.referees[0] && item.referees[0].name) || "Não divulgado";
+        const matchId = item.fixture.id;
+        const home = item.teams.home.name;
+        const away = item.teams.away.name;
+        const league = item.league.name;
+        const country = item.league.country;
+        const referee = item.fixture.referee || "Não divulgado";
+        const matchDate = item.fixture.date;
+        const statusPartida = item.fixture.status.short;
 
-        const historico5 = gerarHistoricoUltimos5Jogos(matchId);
+        const ultimos5 = gerarEstatisticasCompletas(matchId);
 
         const docData = {
           id: matchId,
           homeTeam: home,
           awayTeam: away,
           league,
-          country: item.competition.area?.name || "Internacional",
-          matchDate: item.utcDate,
-          statusPartida: item.status,
+          country,
+          matchDate,
+          statusPartida,
           arbitro: referee,
-          ultimos5Jogos: historico5,
+          ultimos5Jogos: ultimos5,
           updatedAt: new Date().toISOString()
         };
 
@@ -138,14 +152,14 @@ module.exports = async function handler(req, res) {
 
         listaPartidas.push(docData);
       } catch (err) {
-        console.error(`Erro ao processar jogo ${item.id}:`, err.message);
+        console.error(`Erro ao processar fixture ${item.fixture?.id}:`, err.message);
       }
     }
 
     return res.status(200).json({ 
       success: true, 
       matches: listaPartidas,
-      message: `Estatísticas processadas! (${listaPartidas.length} jogos)` 
+      message: `Dados processados com sucesso! (${listaPartidas.length} jogos)` 
     });
   } catch (err) {
     return res.status(500).json({ success: false, erroCritico: err.message });
