@@ -11,11 +11,11 @@ if (!admin.apps.length && process.env.FIREBASE_CREDENTIALS) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
+// Nova Chave da API-Football
 const API_FOOTBALL_KEY = "b51dfcc4045a961f784c0959ca1f381a";
 const API_HOST = "v3.football.api-sports.io";
 
 async function buscarAgendaReal() {
-  // Ajusta rigorosamente para o horário de Brasília (UTC-3)
   const agoraBrasil = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
   const hojeStr = agoraBrasil.toISOString().split('T')[0];
   
@@ -23,8 +23,6 @@ async function buscarAgendaReal() {
   amanhaBrasil.setDate(agoraBrasil.getDate() + 1);
   const amanhaStr = amanhaBrasil.toISOString().split('T')[0];
   
-  console.log(`Buscando jogos para as datas: ${hojeStr} e ${amanhaStr}`);
-
   const [resHoje, resAmanha] = await Promise.all([
     fetch(`https://${API_HOST}/fixtures?date=${hojeStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }),
     fetch(`https://${API_HOST}/fixtures?date=${amanhaStr}`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } })
@@ -35,9 +33,8 @@ async function buscarAgendaReal() {
 
   let allFixtures = [...(dataHoje.response || []), ...(dataAmanha.response || [])];
 
-  // SE por acaso o dia exato não retornar nada (ex: fuso extremo), busca os jogos AO VIVO do dia para garantir conteúdo na tela
+  // Fallback caso o dia exato venha vazio: busca os jogos ao vivo do momento
   if (allFixtures.length === 0) {
-    console.log("Nenhum jogo na data exata. Buscando jogos ao vivo (live=all)...");
     const resLive = await fetch(`https://${API_HOST}/fixtures?live=all`, { headers: { 'x-apisports-key': API_FOOTBALL_KEY } });
     const dataLive = resLive.ok ? await resLive.json() : { response: [] };
     allFixtures = dataLive.response || [];
@@ -100,10 +97,10 @@ module.exports = async function handler(req, res) {
     const agenda = await buscarAgendaReal();
     
     if (!agenda || agenda.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado nem ao vivo nem na agenda de hoje." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã." });
     }
 
-    // Limitamos a 25 jogos para proteger estritamente o limite gratuito da API-Football
+    // Limite de 25 jogos por requisição para proteger o uso da API gratuita
     const agendaLimitada = agenda.slice(0, 25);
     const listaPartidas = [];
 
@@ -111,6 +108,7 @@ module.exports = async function handler(req, res) {
       try {
         const matchId = item.fixture.id;
         
+        // 1. Verificação de Cache no Firebase
         let docRef = null;
         if (db) {
           docRef = db.collection('match_stats').doc(String(matchId));
@@ -127,11 +125,12 @@ module.exports = async function handler(req, res) {
           }
         }
 
+        // 2. Busca dados reais de previsões na API
         const reqStats = await fetch(`https://${API_HOST}/predictions?fixture=${matchId}`, { 
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
         
-        const resStats = reqStats.ok ? await resStats.json() : null;
+        const resStats = reqStats.ok ? await reqStats.json() : null;
         const predictions = resStats?.response?.[0] || null;
 
         const homeTeam = item.teams.home.name;
@@ -168,6 +167,7 @@ module.exports = async function handler(req, res) {
           updatedAt: new Date().toISOString()
         };
 
+        // 3. Salva no Cache do Firebase
         if (db) {
           await docRef.set(docData, { merge: true });
         }
