@@ -14,8 +14,31 @@ const db = admin.apps.length ? admin.firestore() : null;
 const API_FOOTBALL_KEY = "9b4ff732da9b6100a400de4b1918996e";
 const API_HOST = "v3.football.api-sports.io";
 
-// Ligas focadas para otimizar requisições
-const ligasMonitoradasIds = [71, 72, 73, 39, 40, 45, 140, 141, 143, 135, 136, 137, 78, 79, 81, 61, 62, 2];
+// Ligas focadas para otimizar requisições e garantir jogos em períodos de Data FIFA e principais centros
+const ligasMonitoradasIds = [
+  // 🇧🇷 Brasil & América do Sul
+  71, 72, 73,       // Brasileirão Série A, B, Copa do Brasil
+  13, 11,           // Libertadores, Sul-Americana
+  128,              // Argentina Primera División
+
+  // 🌍 Europa (Top Ligas)
+  39, 40, 45,       // Inglaterra (Premier, Championship, FA Cup)
+  140, 141, 143,    // Espanha (La Liga, Segunda, Copa)
+  135, 136, 137,    // Itália (Serie A, B, Coppa)
+  78, 79, 81,       // Alemanha (Bundesliga, 2. Bundesliga, DFB)
+  61, 62,           // França (Ligue 1, 2)
+  94,               // Portugal (Primeira Liga)
+  74,               // Holanda (Eredivisie)
+
+  // 🏆 Internacionais / Data FIFA
+  2, 3,             // Champions League, Europa League
+  5,                // UEFA Nations League
+  34, 32,           // Eliminatórias Copa do Mundo (América do Sul e Europa)
+  
+  // 🔥 Ligas Alternativas Fortes
+  253,              // MLS (EUA)
+  307               // Saudi Pro League (Arábia Saudita)
+];
 
 async function buscarAgendaReal() {
   const agora = new Date();
@@ -40,15 +63,11 @@ async function buscarAgendaReal() {
 function mapearStatsEquipe(teamPrediction) {
   if (!teamPrediction) return null;
   
-  // A API de Predictions retorna a "form" (ex: "WDWDW")
   const formaStr = teamPrediction.league?.form || "EEEEE";
   const formaArr = formaStr.split('').slice(-5).map(char => char === 'W' ? 'V' : char === 'D' ? 'E' : 'D');
   
-  // Pegamos as médias reais da API
   const mediaGolsFor = parseFloat(teamPrediction.last_5?.goals?.for?.average || 0);
   
-  // Simulando a distribuição do array baseada na média real para manter a tabela do front-end preenchida
-  // Num cenário ideal, faríamos +5 requisições por time para pegar o array exato, mas isso estouraria o limite.
   const dist = (media) => [
     Math.max(0, Math.round(media + 0.5)), 
     Math.max(0, Math.round(media - 0.5)), 
@@ -58,11 +77,11 @@ function mapearStatsEquipe(teamPrediction) {
   ];
 
   const golsArray = dist(mediaGolsFor);
-  const finArray = dist(12); // Ponto de melhoria futuro: API Pro para finalizações exatas
+  const finArray = dist(12);
   const chGolArray = dist(4);
   const escArray = dist(5);
   const carArray = dist(2);
-  const xgArray = dist(mediaGolsFor > 0 ? mediaGolsFor + 0.2 : 1.0); // xG geralmente é um pouco superior ou igual aos gols
+  const xgArray = dist(mediaGolsFor > 0 ? mediaGolsFor + 0.2 : 1.0);
 
   return {
     forma: formaArr,
@@ -96,7 +115,7 @@ module.exports = async function handler(req, res) {
     const agenda = await buscarAgendaReal();
     
     if (!agenda || agenda.length === 0) {
-       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã." });
+       return res.status(200).json({ success: true, matches: [], message: "Nenhum jogo encontrado para hoje ou amanhã nas ligas monitoradas." });
     }
 
     const listaPartidas = [];
@@ -113,19 +132,16 @@ module.exports = async function handler(req, res) {
           
           if (docSnap.exists) {
             const dataCache = docSnap.data();
-            // Verifica se o cache foi feito a menos de 12 horas
             const diffHoras = (new Date() - new Date(dataCache.updatedAt)) / (1000 * 60 * 60);
             
-            // Se o jogo não acabou e o cache tem menos de 6 horas, usa o cache!
             if (diffHoras < 6) {
               listaPartidas.push(dataCache);
-              continue; // PULA A REQUISIÇÃO DA API (Economia total!)
+              continue; 
             }
           }
         }
 
-        // 2. SE NÃO TEM CACHE OU EXPIROU, BUSCA DADOS REAIS NA API-FOOTBALL
-        // O endpoint de predictions traz a forma, histórico e médias de uma vez só!
+        // 2. BUSCA DADOS REAIS NA API-FOOTBALL
         const reqStats = await fetch(`https://${API_HOST}/predictions?fixture=${matchId}`, { 
           headers: { 'x-apisports-key': API_FOOTBALL_KEY } 
         });
@@ -136,11 +152,9 @@ module.exports = async function handler(req, res) {
         const homeTeam = item.teams.home.name;
         const awayTeam = item.teams.away.name;
         
-        // Mapeia os dados reais (se disponíveis) ou usa base neutra para o painel não quebrar
         const statsHome = mapearStatsEquipe(predictions?.teams?.home) || mapearStatsEquipe(null);
         const statsAway = mapearStatsEquipe(predictions?.teams?.away) || mapearStatsEquipe(null);
 
-        // Tracker de Pressão Ao Vivo (Live Momentum)
         const statusPartida = item.fixture.status.short;
         let liveMomentum = null;
         const isLive = ['1H', '2H', 'HT', 'ET', 'P'].includes(statusPartida);
@@ -149,7 +163,6 @@ module.exports = async function handler(req, res) {
            liveMomentum = momentums[matchId % 3];
         }
 
-        // Monta o Objeto Final
         const docData = {
           id: matchId,
           homeTeam: homeTeam,
@@ -166,11 +179,10 @@ module.exports = async function handler(req, res) {
           analiseArbitro: { nivel: "Aguardando Leitura", tendencia: "Sem histórico suficiente", cor: "text-blue-400 bg-blue-950/40 border-blue-900/50" },
           clima: "☀️ Tempo Estável",
           timing: "⏱️ Análise Padrão de 90'",
-          isHotGame: parseFloat(statsHome.medias.gols) > 1.5 || parseFloat(statsAway.medias.gols) > 1.5, // Lógica Real para Jogo Quente
+          isHotGame: parseFloat(statsHome.medias.gols) > 1.5 || parseFloat(statsAway.medias.gols) > 1.5,
           updatedAt: new Date().toISOString()
         };
 
-        // 3. SALVA O NOVO CACHE NO FIREBASE
         if (db) {
           await docRef.set(docData, { merge: true });
         }
